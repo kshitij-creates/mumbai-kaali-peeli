@@ -815,19 +815,39 @@ function CustomerView({
   const [tab, setTab] = useState('list');
   const [showForm, setShowForm] = useState(false);
   const [nearMe, setNearMe] = useState(null);
+  
+  // NEW: Added states for robust error handling and loading indicators
+  const [isLocating, setIsLocating] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
-  const handleNearMe = () => {
+  // NEW: Upgraded click handler that manages the loading state and catches errors gracefully
+  const handleNearMeClick = () => {
     if (nearMe) {
       setNearMe(null);
+      setLocationError('');
       return;
     }
-    navigator.geolocation.getCurrentPosition((pos) =>
-      setNearMe({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+
+    setIsLocating(true);
+    setLocationError('');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNearMe({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setIsLocating(false);
+      },
+      (err) => {
+        console.error("Location error:", err);
+        setLocationError("Could not get your location.");
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 
   const filtered = useMemo(() => {
-    return allRoutes.filter((r) => {
+    // 1. Filter by search text and taxi/auto type first
+    let results = allRoutes.filter((r) => {
       if (filter !== 'all' && r.type !== filter) return false;
       return (
         !search ||
@@ -835,7 +855,44 @@ function CustomerView({
         r.stops.some((s) => s.toLowerCase().includes(search.toLowerCase()))
       );
     });
-  }, [allRoutes, search, filter]);
+
+    // 2. Distance Calculation for BOTH Base and Community Routes
+    if (nearMe) {
+      results = results.map(r => {
+        let minDistance = Infinity;
+        
+        // Helper function to do the Haversine math
+        const calcDist = (lat, lng) => {
+          const R = 6371; // Earth's radius in km
+          const dLat = (lat - nearMe.lat) * (Math.PI / 180);
+          const dLon = (lng - nearMe.lng) * (Math.PI / 180);
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
+                    Math.cos(nearMe.lat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const dist = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+          if (dist < minDistance) minDistance = dist;
+        };
+
+        // A. Check dynamic GPS data (Community Routes from Firebase)
+        if (r.path && r.path.length > 0) {
+          r.path.forEach(p => {
+            const lat = Array.isArray(p) ? p[0] : p.lat;
+            const lng = Array.isArray(p) ? p[1] : p.lng;
+            if (lat && lng) calcDist(lat, lng);
+          });
+        }
+
+        // B. Check hardcoded dictionary (Base Routes)
+        r.stops.forEach(stopName => {
+          const coords = COORDS[stopName];
+          if (coords) calcDist(coords.lat, coords.lng);
+        });
+        
+        return { ...r, distance: minDistance };
+      }).sort((a, b) => a.distance - b.distance); 
+    }
+
+    return results;
+  }, [allRoutes, search, filter, nearMe]);
 
   return (
     <div>
@@ -903,20 +960,26 @@ function CustomerView({
               {v === 'all' ? 'All' : v === 'auto' ? 'Auto' : 'Taxi'}
             </button>
           ))}
-          <button
-            onClick={handleNearMe}
-            style={{
-              background: nearMe ? '#0f172a' : CARD,
-              color: nearMe ? '#60a5fa' : MUTED,
-              padding: '6px 12px',
-              borderRadius: 12,
-              border: 'none',
-              marginLeft: 'auto',
-              cursor: 'pointer',
-            }}
-          >
-            📍 Near Me
-          </button>
+          
+          {/* NEW: Updated button layout with the loading ternary and error message nested safely */}
+          <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <button
+              onClick={handleNearMeClick}
+              disabled={isLocating}
+              style={{
+                background: nearMe ? '#0f172a' : CARD,
+                color: nearMe ? '#60a5fa' : MUTED,
+                padding: '6px 12px',
+                borderRadius: 12,
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              {isLocating ? "Locating..." : "📍 Near Me"}
+            </button>
+            {locationError && <div style={{ color: 'red', fontSize: '11px', marginTop: '2px', position: 'absolute', transform: 'translateY(32px)' }}>{locationError}</div>}
+          </div>
+          
           <button
             onClick={() => setShowForm(true)}
             style={{
@@ -972,6 +1035,7 @@ function CustomerView({
               onSelect={() => setSelectedId((p) => (p === r.id ? null : r.id))}
               onDelete={onDeleteRoute}
               isAdmin={isAdmin}
+              distance={r.distance}
             />
           ))
         ) : (
@@ -989,10 +1053,11 @@ function CustomerView({
                   route={r}
                   selected={selectedId === r.id}
                   onSelect={() =>
-                    setSelectedId((p) => (p === r.id ? null : id))
+                    setSelectedId((p) => (p === r.id ? null : r.id))
                   }
                   onDelete={onDeleteRoute}
                   isAdmin={isAdmin}
+                  distance={r.distance}
                 />
               ))}
             </div>
