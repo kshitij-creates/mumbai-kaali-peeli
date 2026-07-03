@@ -3,6 +3,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import taxiLogo from './assets/taxi.svg';
 
 // ── ⚠️ FIREBASE SETUP ────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -909,7 +910,7 @@ function CustomerView({
   </button>
   
   <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px' }}>
-    <img src="/src/assets/taxi.svg" alt="logo" style={{ width: '32px', height: '32px' }} />
+  <img src={taxiLogo} alt="logo" style={{ width: '32px', height: '32px' }} />
     MeterDown
   </h1>
 </div>
