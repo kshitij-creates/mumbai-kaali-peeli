@@ -4,7 +4,8 @@ import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot } 
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import taxiLogo from './assets/taxi.svg';
-
+import taxiIcon from './assets/taxi.svg';
+import autoIcon from './assets/auto.svg';
 // ── ⚠️ FIREBASE SETUP ────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyAuca_BbRV27xRnxmPJKJviaSQGj3lfnGo",
@@ -125,13 +126,13 @@ const Y = '#FFD700',
   const META = {
     share_taxi: { 
       l: 'Share Taxi', 
-      icon: '/src/assets/taxi.svg', 
+      icon: taxiIcon, // No quotes! Using the imported variable
       color: Y, 
       bg: '#2A2400' 
     },
     auto: { 
       l: 'Auto', 
-      icon: '/src/assets/auto.svg', 
+      icon: autoIcon, // No quotes! Using the imported variable
       color: '#22c55e', 
       bg: '#062a14' 
     },
