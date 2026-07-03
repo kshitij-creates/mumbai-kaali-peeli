@@ -182,3 +182,155 @@
     border-right-color: var(--border);
   }
 }
+/* The Cyber-Neon Button */
+.neon-btn {
+  background: linear-gradient(135deg, #FFD700 0%, #F59E0B 100%);
+  color: #111111;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.25);
+  transition: all 0.2s ease-in-out;
+  border: none;
+  cursor: pointer;
+}
+
+/* Make it glow brighter when hovered */
+.neon-btn:hover {
+  box-shadow: 0 6px 22px rgba(255, 215, 0, 0.55);
+  transform: translateY(-2px);
+}
+
+/* Satisfying physical 'press' effect when clicked */
+.neon-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+}
+/* Premium Route Card Styling */
+.route-card {
+  background: #111111;
+  border: 1px solid #333333;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.route-card:hover {
+  transform: translateY(-4px);
+  border-color: #FFD700 !important; 
+  box-shadow: 0 8px 24px rgba(255, 215, 0, 0.15);
+}
+
+.route-meta-text {
+  color: #aaaaaa;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cyber-modal {
+  background: rgba(10, 10, 10, 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 215, 0, 0.3) !important;
+  box-shadow: 0 0 30px rgba(255, 215, 0, 0.2) !important;
+  border-radius: 20px !important;
+  padding: 24px !important;
+}
+
+.cyber-input {
+  background: #1a1a1a !important;
+  border: 1px solid #333 !important;
+  color: white !important;
+  padding: 12px !important;
+  border-radius: 8px !important;
+  width: 100% !important;
+  transition: border 0.3s ease !important;
+}
+
+.cyber-input:focus {
+  border-color: #FFD700 !important;
+  outline: none !important;
+}
+.tactile-btn {
+  transition: transform 0.1s ease-in-out !important;
+}
+
+.tactile-btn:active {
+  transform: scale(0.95) !important;
+}
+/* The Mini Cyber-Radar */
+.radar-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  background: conic-gradient(from 0deg, transparent 20%, rgba(255, 215, 0, 0.9) 100%);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+/* The Slide-up Animation */
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Apply it to the cards */
+.route-card {
+  /* ... your existing route-card styles ... */
+  animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0; /* Starts hidden, animation reveals it */
+}
+
+/* Stagger the first 5 cards so they don't all animate at the exact same millisecond */
+.route-card:nth-child(1) { animation-delay: 0.05s; }
+.route-card:nth-child(2) { animation-delay: 0.1s; }
+.route-card:nth-child(3) { animation-delay: 0.15s; }
+.route-card:nth-child(4) { animation-delay: 0.2s; }
+.route-card:nth-child(5) { animation-delay: 0.25s; }
+/* --- SIDE DRAWER --- */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 280px;
+  background: #0a0a0a;
+  border-right: 1px solid #222;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.8);
+  z-index: 1000;
+  animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 20px;
+}

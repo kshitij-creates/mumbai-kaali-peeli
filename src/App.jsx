@@ -121,10 +121,20 @@ const Y = '#FFD700',
   BORDER = '#333',
   TXT = '#FFF',
   MUTED = '#A0A0A0';
-const META = {
-  share_taxi: { l: '🚕 Share Taxi', color: Y, bg: '#2A2400' },
-  auto: { l: '🛺 Auto', color: '#22c55e', bg: '#062a14' },
-};
+  const META = {
+    share_taxi: { 
+      l: 'Share Taxi', 
+      icon: '/src/assets/taxi.svg', 
+      color: Y, 
+      bg: '#2A2400' 
+    },
+    auto: { 
+      l: 'Auto', 
+      icon: '/src/assets/auto.svg', 
+      color: '#22c55e', 
+      bg: '#062a14' 
+    },
+  };
 const inp = {
   width: '100%',
   padding: '12px',
@@ -166,8 +176,16 @@ const TypeBadge = ({ type }) => (
       padding: '4px 8px',
       borderRadius: 20,
       whiteSpace: 'nowrap',
+      display: 'flex', 
+      alignItems: 'center',
+      gap: '6px' 
     }}
   >
+    <img 
+      src={META[type].icon} 
+      alt={META[type].l} 
+      style={{ width: '16px', height: '16px' }} 
+    />
     {META[type].l}
   </div>
 );
@@ -280,7 +298,6 @@ function AddRouteForm({ onSubmit, onClose }) {
       if (coords) stopCoords.push([coords.lat, coords.lng]);
     }
 
-    // Auto-generate name: "First Stop → Last Stop"
     const routeName = `${stopsList[0]} → ${stopsList[stopsList.length - 1]}`;
 
     onSubmit({
@@ -298,7 +315,8 @@ function AddRouteForm({ onSubmit, onClose }) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.8)',
+        background: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(8px)',
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
@@ -306,27 +324,16 @@ function AddRouteForm({ onSubmit, onClose }) {
         padding: 16,
       }}
     >
-      <div
-        style={{
-          background: CARD,
-          padding: 20,
-          borderRadius: 16,
-          border: `1px solid ${BORDER}`,
-          width: '100%',
-          maxWidth: 400,
-        }}
-      >
-        <h2 style={{ margin: '0 0 16px', color: Y }}>Add New Route</h2>
+      <div className="cyber-modal" style={{ width: '100%', maxWidth: 400 }}>
+        <h2 style={{ margin: '0 0 16px', color: '#FFD700' }}>Add New Route</h2>
         <form
           onSubmit={submit}
           style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
         >
           <select
             value={otherInfo.type}
-            onChange={(e) =>
-              setOtherInfo({ ...otherInfo, type: e.target.value })
-            }
-            style={inp}
+            onChange={(e) => setOtherInfo({ ...otherInfo, type: e.target.value })}
+            className="cyber-input"
           >
             <option value="share_taxi">🚕 Share Taxi</option>
             <option value="auto">🛺 Auto</option>
@@ -337,13 +344,14 @@ function AddRouteForm({ onSubmit, onClose }) {
               placeholder="Add stop (e.g. Bandra)"
               value={currentStop}
               onChange={(e) => setCurrentStop(e.target.value)}
-              style={inp}
+              className="cyber-input"
             />
             <button
               type="button"
               onClick={addStop}
+              className="tactile-btn"
               style={{
-                background: Y,
+                background: '#FFD700',
                 border: 'none',
                 borderRadius: 8,
                 padding: '0 15px',
@@ -353,76 +361,40 @@ function AddRouteForm({ onSubmit, onClose }) {
               +
             </button>
           </div>
+          
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {stopsList.map((s, i) => (
-              <span
-                key={i}
-                style={{
-                  background: '#333',
-                  padding: '4px 10px',
-                  borderRadius: 12,
-                  fontSize: 12,
-                }}
-              >
+              <span key={i} style={{ background: '#333', padding: '4px 10px', borderRadius: 12, fontSize: 12, color: '#fff' }}>
                 {s}
               </span>
             ))}
           </div>
 
-          <input
-            required
-            placeholder="Fare (e.g. ₹15-20)"
-            value={otherInfo.fare}
-            onChange={(e) =>
-              setOtherInfo({ ...otherInfo, fare: e.target.value })
-            }
-            style={inp}
-          />
-          <input
-            required
-            placeholder="Frequency (e.g. Every 5 mins)"
-            value={otherInfo.freq}
-            onChange={(e) =>
-              setOtherInfo({ ...otherInfo, freq: e.target.value })
-            }
-            style={inp}
-          />
-          <input
-            required
-            placeholder="Hours (e.g. 6 AM - 11 PM)"
-            value={otherInfo.hours}
-            onChange={(e) =>
-              setOtherInfo({ ...otherInfo, hours: e.target.value })
-            }
-            style={inp}
-          />
+          <input required placeholder="Fare (e.g. ₹15-20)" value={otherInfo.fare} onChange={(e) => setOtherInfo({ ...otherInfo, fare: e.target.value })} className="cyber-input" />
+          <input required placeholder="Frequency (e.g. Every 5 mins)" value={otherInfo.freq} onChange={(e) => setOtherInfo({ ...otherInfo, freq: e.target.value })} className="cyber-input" />
+          <input required placeholder="Hours (e.g. 6 AM - 11 PM)" value={otherInfo.hours} onChange={(e) => setOtherInfo({ ...otherInfo, hours: e.target.value })} className="cyber-input" />
 
           <button
             type="submit"
             disabled={isSearching}
+            className="tactile-btn"
             style={{
               marginTop: 10,
-              background: isSearching ? '#888' : Y,
-              color: BK,
+              background: isSearching ? '#888' : '#FFD700',
               padding: 12,
               borderRadius: 8,
               fontWeight: 700,
               border: 'none',
+              cursor: 'pointer'
             }}
           >
-            {isSearching ? 'Mapping...' : 'Create Route'}
+            {isSearching ? (
+              <>
+                <span className="pulse-dot"></span> Mapping...
+              </>
+            ) : 'Create Route'}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: '#333',
-              color: TXT,
-              padding: 12,
-              borderRadius: 8,
-              border: 'none',
-            }}
-          >
+          <button type="button" onClick={onClose} className="tactile-btn" style={{ background: '#333', color: '#fff', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer' }}>
             Cancel
           </button>
         </form>
@@ -435,6 +407,7 @@ function AddRouteForm({ onSubmit, onClose }) {
 function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const m = META[route.type];
+  
   const distLabel =
     distance != null
       ? distance < 0.1
@@ -443,8 +416,10 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
         ? `${Math.round(distance * 1000)}m`
         : `${distance.toFixed(1)} km`
       : null;
+
   return (
     <div
+      className="route-card" /* This triggers the neon hover effect from App.css */
       style={{
         position: 'relative',
         background: selected ? m.bg : CARD,
@@ -453,9 +428,11 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
         padding: '12px 14px',
         marginBottom: 8,
         cursor: 'pointer',
+        transition: 'all 0.3s ease', /* Ensures the hover lift is smooth */
       }}
       onClick={() => !confirmDel && onSelect()}
     >
+      {/* Hidden Delete Overlay */}
       {confirmDel && (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -486,6 +463,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
                 border: 'none',
                 borderRadius: 6,
                 fontWeight: 800,
+                cursor: 'pointer'
               }}
             >
               Delete
@@ -501,6 +479,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
                 color: TXT,
                 border: 'none',
                 borderRadius: 6,
+                cursor: 'pointer'
               }}
             >
               Cancel
@@ -508,6 +487,8 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
           </div>
         </div>
       )}
+
+      {/* Top Row: Route Name & Badge */}
       <div
         style={{
           display: 'flex',
@@ -527,6 +508,8 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
         </div>
         <TypeBadge type={route.type} />
       </div>
+
+      {/* Admin Trash Icon */}
       {isAdmin && (
         <button
           onClick={(e) => {
@@ -547,6 +530,8 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
           🗑️
         </button>
       )}
+
+      {/* Bottom Row: Fare, Frequency, Distance */}
       <div
         style={{
           display: 'flex',
@@ -562,6 +547,8 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
           <span style={{ color: Y, fontWeight: 700 }}>📍 {distLabel} away</span>
         )}
       </div>
+
+      {/* Expanded Stops View (When Clicked) */}
       {selected && (
         <div
           style={{
@@ -599,7 +586,6 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
     </div>
   );
 }
-
 // ── V2: Dynamic MapView ────────────────────────────────────────────────────────
 function MapView({ routes, selectedId, onSelect, userLoc }) {
   const sel = routes.find((r) => r.id === selectedId);
@@ -814,6 +800,7 @@ function CustomerView({
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState('list');
   const [showForm, setShowForm] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [nearMe, setNearMe] = useState(null);
   
   // NEW: Added states for robust error handling and loading indicators
@@ -908,11 +895,24 @@ function CustomerView({
             alignItems: 'center',
           }}
         >
-          <div>
-            <h1 style={{ margin: 0, color: Y, fontSize: 20, fontWeight: 900 }}>
-              🚕 Mumbai Kaali-Peeli
-            </h1>
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+  {/* Hamburger Icon */}
+  <button 
+    onClick={() => setIsDrawerOpen(true)}
+    style={{ background: 'transparent', border: 'none', color: '#FFF', padding: '4px', cursor: 'pointer', display: 'flex' }}
+  >
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </button>
+  
+  <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px' }}>
+    <img src="/src/assets/taxi.svg" alt="logo" style={{ width: '32px', height: '32px' }} />
+    MeterDown
+  </h1>
+</div>
           <button
             onClick={onAdminClick}
             style={{
@@ -963,37 +963,54 @@ function CustomerView({
           
           {/* NEW: Updated button layout with the loading ternary and error message nested safely */}
           <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <button
-              onClick={handleNearMeClick}
-              disabled={isLocating}
-              style={{
-                background: nearMe ? '#0f172a' : CARD,
-                color: nearMe ? '#60a5fa' : MUTED,
-                padding: '6px 12px',
-                borderRadius: 12,
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {isLocating ? "Locating..." : "📍 Near Me"}
-            </button>
+          <button
+  onClick={handleNearMeClick}
+  disabled={isLocating}
+  className={`tactile-btn ${!isLocating ? 'near-me-glow' : ''}`}
+  style={{
+    background: isLocating ? '#0f172a' : (nearMe ? '#0f172a' : CARD),
+    color: nearMe ? '#60a5fa' : MUTED,
+    padding: '6px 12px',
+    borderRadius: 12,
+    border: isLocating ? '1px solid rgba(0, 255, 65, 0.6)' : 'none', // Matching green border
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '100px',
+    minHeight: '36px',
+    transition: 'all 0.3s ease'
+  }}
+>
+  <style>{`
+    @keyframes svg-radar-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `}</style>
+
+  {isLocating ? (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      style={{ animation: 'svg-radar-spin 1.2s linear infinite' }}
+    >
+      {/* Outer grid ring - Faded Green */}
+      <circle cx="12" cy="12" r="10" stroke="rgba(0, 255, 65, 0.3)" strokeWidth="2" fill="none" />
+      {/* The sweeping radar wedge - Bright Green */}
+      <path d="M12 12 L12 2 A10 10 0 0 1 22 12 Z" fill="rgba(0, 255, 65, 0.9)" />
+      {/* Center blip */}
+      <circle cx="12" cy="12" r="2" fill="#111" />
+    </svg>
+  ) : (
+    <span>📍 Near Me</span>
+  )}
+</button>
             {locationError && <div style={{ color: 'red', fontSize: '11px', marginTop: '2px', position: 'absolute', transform: 'translateY(32px)' }}>{locationError}</div>}
           </div>
           
-          <button
-            onClick={() => setShowForm(true)}
-            style={{
-              background: Y,
-              color: BK,
-              padding: '6px 12px',
-              borderRadius: 12,
-              border: 'none',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            ➕ Add
-          </button>
+          
         </div>
         <div
           style={{
@@ -1004,27 +1021,51 @@ function CustomerView({
             marginBottom: 12,
           }}
         >
-          {[
-            ['list', '📋 List'],
-            ['map', '🗺️ Map'],
-          ].map(([v, l]) => (
-            <button
-              key={v}
-              onClick={() => setTab(v)}
-              style={{
-                flex: 1,
-                padding: 6,
-                background: tab === v ? Y : 'transparent',
-                color: tab === v ? BK : MUTED,
-                border: 'none',
-                borderRadius: 10,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {l}
-            </button>
-          ))}
+        {[
+  ['list', 'List'],
+  ['map', 'Map'],
+].map(([v, l]) => (
+  <button
+  key={v}
+  className={`${tab === v ? 'neon-btn' : ''} tactile-btn`}
+  onClick={() => setTab(v)}
+  style={{
+    flex: 1,
+    padding: '10px',
+    border: 'none',
+    borderRadius: 12,
+    fontWeight: 800,
+    cursor: 'pointer',
+    background: tab === v ? 'transparent' : '#1a1a1a',
+    color: tab === v ? '#111111' : '#888888',
+    transition: 'all 0.2s ease-in-out',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px'
+  }}
+>
+    {v === 'list' ? (
+      /* Custom Cyber List Icon */
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"></line>
+        <line x1="8" y1="12" x2="21" y2="12"></line>
+        <line x1="8" y1="18" x2="21" y2="18"></line>
+        <line x1="3" y1="6" x2="3.01" y2="6"></line>
+        <line x1="3" y1="12" x2="3.01" y2="12"></line>
+        <line x1="3" y1="18" x2="3.01" y2="18"></line>
+      </svg>
+    ) : (
+      /* Custom Cyber Map Icon */
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
+        <line x1="9" y1="3" x2="9" y2="21"></line>
+        <line x1="15" y1="3" x2="15" y2="21"></line>
+      </svg>
+    )}
+    {l}
+  </button>
+))}
         </div>
         {tab === 'list' ? (
           filtered.map((r) => (
@@ -1064,6 +1105,105 @@ function CustomerView({
           </div>
         )}
       </div>
+     {/* --- THE SIDE DRAWER (SLEDGEHAMMER VERSION) --- */}
+{isDrawerOpen && (
+  <>
+    {/* Force animations directly into the DOM */}
+    <style>{`
+      @keyframes slideInLeft {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(0); }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+    `}</style>
+
+    {/* Background Overlay (Click to close) */}
+    <div 
+      onClick={() => setIsDrawerOpen(false)}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 999,
+        animation: 'fadeIn 0.2s ease-out forwards'
+      }}
+    />
+    
+    {/* Sliding Panel */}
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        height: '100%',
+        width: '280px',
+        background: '#0a0a0a',
+        borderRight: '1px solid #222',
+        boxShadow: '4px 0 24px rgba(0,0,0,0.8)',
+        zIndex: 1000,
+        animation: 'slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '24px 20px',
+        boxSizing: 'border-box'
+      }}
+    >
+      
+      {/* Drawer Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <h2 style={{ margin: 0, color: '#FFF', fontSize: 20 }}>Menu</h2>
+        <button 
+          onClick={() => setIsDrawerOpen(false)} 
+          style={{ background: 'transparent', border: 'none', color: '#888', fontSize: 24, cursor: 'pointer' }}
+        >
+          ✖
+        </button>
+      </div>
+
+      {/* Your Awesome CTA Block */}
+      <div style={{ 
+        background: '#161616', 
+        border: '1px dashed #FFD700', 
+        borderRadius: 12, 
+        padding: '20px', 
+        textAlign: 'center' 
+      }}>
+        <div style={{ fontSize: 32, marginBottom: '12px' }}>🤫</div>
+        <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px 0', fontWeight: 500 }}>
+          Know a secret sharing taxi/auto route? We would be glad if you tell everyone too!
+        </p>
+        <button
+          className="tactile-btn"
+          onClick={() => {
+            setIsDrawerOpen(false); 
+            setShowForm(true);      
+          }}
+          style={{ 
+            width: '100%', 
+            padding: '12px', 
+            borderRadius: 8, 
+            fontWeight: 900,
+            fontSize: 16,
+            background: 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)',
+            color: '#111',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          + Add Route
+        </button>
+      </div>
+
+    </div>
+  </>
+)}
       {showForm && (
         <AddRouteForm
           onSubmit={onAddRoute}
