@@ -957,43 +957,45 @@ function CustomerView({
             alignItems: 'center',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-  {/* Hamburger Icon */}
-  <button 
-    onClick={() => setIsDrawerOpen(true)}
-    style={{ background: 'transparent', border: 'none', color: '#FFF', padding: '4px', cursor: 'pointer', display: 'flex' }}
-  >
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="3" y1="12" x2="21" y2="12"></line>
-      <line x1="3" y1="6" x2="21" y2="6"></line>
-      <line x1="3" y1="18" x2="21" y2="18"></line>
-    </svg>
-  </button>
-  
- {/* --- WRAPPED LOGO WITH SECRET HANDSHAKE --- */}
-<div onClick={() => {
-  const newCount = adminAttempt + 1;
-  setAdminAttempt(newCount);
-  if (newCount === 5) {
-    const password = prompt("Enter Admin Password:");
-    if (password === "KSHITIJ123") {
-      setAdminMode(true);
-      alert("Admin Mode Activated!");
-    }
-    setAdminAttempt(0);
-  }
-}} style={{ cursor: 'pointer' }}>
-  <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
-    <img src={taxiLogo} alt="logo" style={{ width: '32px', height: '32px' }} />
-    MeterDown
-  </h1>
-</div>
-</div>
-          
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Hamburger Icon */}
+            <button 
+              onClick={() => setIsDrawerOpen(true)}
+              style={{ background: 'transparent', border: 'none', color: '#FFF', padding: '4px', cursor: 'pointer', display: 'flex' }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            
+            {/* --- WRAPPED LOGO WITH SECRET HANDSHAKE & DASHBOARD SHORTCUT --- */}
+            <div onClick={() => {
+              if (adminMode) {
+                onAdminClick();
+                return;
+              }
+              const newCount = adminAttempt + 1;
+              setAdminAttempt(newCount);
+              if (newCount === 5) {
+                const password = prompt("Enter Admin Password:");
+                if (password === "KSHITIJ123") {
+                  setAdminMode(true);
+                  alert("Admin Mode Activated! Tap the logo one more time to open the Dashboard.");
+                }
+                setAdminAttempt(0);
+              }
+            }} style={{ cursor: 'pointer' }}>
+              <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src={taxiLogo} alt="logo" style={{ width: '32px', height: '32px' }} />
+                MeterDown
+              </h1>
+            </div>
+          </div>
         </div>
-        <div
-          style={{ padding: '0 16px 14px', maxWidth: 960, margin: '0 auto' }}
-        >
+        
+        <div style={{ padding: '0 16px 14px', maxWidth: 960, margin: '0 auto' }}>
          {/* --- SHIMEJI SEARCH BAR WRAPPER --- */}
     <div style={{ position: 'relative', width: '100%', borderRadius: '8px' }}>
       
