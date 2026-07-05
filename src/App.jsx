@@ -1433,7 +1433,7 @@ export default function App() {
   
     // 3. Send the clean, geocoded data to Firebase
     await addDoc(collection(db, 'pending_routes'), sanitizedRoute);
-    showToast('✅ Route submitted to Firebase cloud!');
+    showToast('✅ Route submitted to Admin for review!');
   };
   const handleDelete = async (id) => {
     if (BASE_ROUTES.some((r) => r.id === id)) {
