@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import taxiLogo from './assets/taxi.svg';
 import taxiIcon from './assets/taxi.svg';
 import autoIcon from './assets/auto.svg';
+
 // ── ⚠️ FIREBASE SETUP ────────────────────────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyAuca_BbRV27xRnxmPJKJviaSQGj3lfnGo",
@@ -406,7 +407,7 @@ function AddRouteForm({ onSubmit, onClose }) {
 }
 
 // ── RouteCard ──────────────────────────────────────────────────────────────────
-function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
+function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const m = META[route.type];
   
@@ -430,7 +431,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
         padding: '12px 14px',
         marginBottom: 8,
         cursor: 'pointer',
-        transition: 'all 0.3s ease', /* Ensures the hover lift is smooth */
+
       }}
       onClick={() => !confirmDel && onSelect()}
     >
@@ -447,7 +448,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 10,
+            gap: '10px',
             zIndex: 10,
           }}
         >
@@ -503,7 +504,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
             fontWeight: 700,
             fontSize: 14,
             color: TXT,
-            paddingRight: isAdmin ? 32 : 0,
+            paddingRight: adminMode ? 32 : 0,
           }}
         >
           {route.name}
@@ -512,7 +513,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
       </div>
 
       {/* Admin Trash Icon */}
-      {isAdmin && (
+      {adminMode && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -795,8 +796,10 @@ function CustomerView({
   onAddRoute,
   onDeleteRoute,
   onAdminClick,
-  isAdmin,
+  adminMode,
+  setAdminMode, // <-- Added this!
 }) {
+  const [adminAttempt, setAdminAttempt] = useState(0); // <-- Safely inside the component!
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
@@ -885,6 +888,63 @@ function CustomerView({
 
   return (
     <div>
+    <style>{`
+        @keyframes slideUpFade {
+          from {
+            opacity: 0;
+            transform: translateY(24px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* --- NEW MORPH ANIMATION --- */
+        @keyframes morphFade {
+          0% { 
+            opacity: 0; 
+            transform: scale(0.97); 
+          }
+          100% { 
+            opacity: 1; 
+            transform: scale(1); 
+          }
+        }
+        /* --- BULLETPROOF HAPTIC CARDS --- */
+        .route-card {
+          transition: all 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+        }
+        .route-card:active {
+          transform: scale(0.96) !important;
+          box-shadow: 0px 2px 4px rgba(0,0,0,0.9) !important;
+          border-color: rgba(255, 215, 0, 0.5) !important;
+        }
+        /* --- SHIMEJI VEHICLE TRACK --- */
+    .shimeji {
+      position: absolute;
+      width: 24px;
+      height: 14px;
+      margin-top: -14px; /* Lifts the car so wheels sit perfectly on the line */
+      margin-left: -12px;
+      z-index: 10;
+      pointer-events: none;
+      transform-origin: 50% 100%; /* Forces the car to pivot on its back wheels during turns */
+      animation: perimeterDrive 12s linear infinite;
+    }
+    
+        @keyframes perimeterDrive {
+          0% { left: 0%; top: 0%; transform: rotate(0deg); }
+          45% { left: 100%; top: 0%; transform: rotate(0deg); }
+          46% { left: 100%; top: 0%; transform: rotate(90deg); } 
+          49% { left: 100%; top: 100%; transform: rotate(90deg); }
+          50% { left: 100%; top: 100%; transform: rotate(180deg); } 
+          95% { left: 0%; top: 100%; transform: rotate(180deg); }
+          96% { left: 0%; top: 100%; transform: rotate(270deg); } 
+          99% { left: 0%; top: 0%; transform: rotate(270deg); }
+          100% { left: 0%; top: 0%; transform: rotate(360deg); } 
+        }
+      `}</style>
       <div style={{ background: BK, borderBottom: '1px solid #2a2a2a' }}>
         <Stripe />
         <div
@@ -910,36 +970,61 @@ function CustomerView({
     </svg>
   </button>
   
-  <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '10px' }}>
-  <img src={taxiLogo} alt="logo" style={{ width: '32px', height: '32px' }} />
+ {/* --- WRAPPED LOGO WITH SECRET HANDSHAKE --- */}
+<div onClick={() => {
+  const newCount = adminAttempt + 1;
+  setAdminAttempt(newCount);
+  if (newCount === 5) {
+    const password = prompt("Enter Admin Password:");
+    if (password === "KSHITIJ123") {
+      setAdminMode(true);
+      alert("Admin Mode Activated!");
+    }
+    setAdminAttempt(0);
+  }
+}} style={{ cursor: 'pointer' }}>
+  <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+    <img src={taxiLogo} alt="logo" style={{ width: '32px', height: '32px' }} />
     MeterDown
   </h1>
 </div>
-          <button
-            onClick={onAdminClick}
-            style={{
-              background: isAdmin ? '#16a34a' : '#1a1a1a',
-              color: isAdmin ? '#fff' : Y,
-              border: isAdmin ? 'none' : `1.5px solid ${Y}44`,
-              padding: '6px 12px',
-              borderRadius: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            🛡️ {isAdmin ? 'Admin Mode' : 'Admin'}{' '}
-            {pendingCount > 0 && `(${pendingCount})`}
-          </button>
+</div>
+          
         </div>
         <div
           style={{ padding: '0 16px 14px', maxWidth: 960, margin: '0 auto' }}
         >
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search stops (e.g. Andheri, Bandra...)"
-            style={inp}
-          />
+         {/* --- SHIMEJI SEARCH BAR WRAPPER --- */}
+    <div style={{ position: 'relative', width: '100%', borderRadius: '8px' }}>
+      
+      {/* The Kaali-Peeli Taxi */}
+      <div className="shimeji" style={{ animationDelay: '0s' }}>
+        <svg width="24" height="14" viewBox="0 0 24 14">
+          <path d="M2 10 L2 5 L6 2 L16 2 L20 5 L22 10 Z" fill="#FFD700" stroke="#000" strokeWidth="1"/>
+          <path d="M6 2 L16 2 L18 5 L4 5 Z" fill="#111"/>
+          <circle cx="5" cy="12" r="2" fill="#333"/><circle cx="17" cy="12" r="2" fill="#333"/>
+          <circle cx="14" cy="4" r="1.5" fill="#fff"/>
+        </svg>
+      </div>
+
+      {/* The Auto Rickshaw */}
+      <div className="shimeji" style={{ animationDelay: '-6s' }}>
+        <svg width="22" height="14" viewBox="0 0 22 14">
+          <path d="M3 10 L3 2 L14 2 L18 6 L19 10 Z" fill="#111" stroke="#FFD700" strokeWidth="1"/>
+          <path d="M5 2 L12 2 L12 6 L4 6 Z" fill="none" stroke="#FFD700"/>
+          <circle cx="6" cy="12" r="1.5" fill="#333"/><circle cx="16" cy="12" r="1.5" fill="#333"/>
+          <circle cx="9" cy="4.5" r="1.5" fill="#fff"/>
+        </svg>
+      </div>
+
+      {/* Your Original Search Bar */}
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search stops (e.g. Andheri, Bandra...)"
+        style={{ ...inp, position: 'relative', zIndex: 5 }} 
+      />
+    </div>
         </div>
         <Stripe />
       </div>
@@ -1014,73 +1099,34 @@ function CustomerView({
           
           
         </div>
-        <div
-          style={{
-            display: 'flex',
-            background: '#161616',
-            borderRadius: 12,
-            padding: 3,
-            marginBottom: 12,
-          }}
-        >
-        {[
-  ['list', 'List'],
-  ['map', 'Map'],
-].map(([v, l]) => (
-  <button
-  key={v}
-  className={`${tab === v ? 'neon-btn' : ''} tactile-btn`}
-  onClick={() => setTab(v)}
+        {/* --- VIEW MORPH WRAPPER --- */}
+<div 
+  key={tab} 
   style={{
-    flex: 1,
-    padding: '10px',
-    border: 'none',
-    borderRadius: 12,
-    fontWeight: 800,
-    cursor: 'pointer',
-    background: tab === v ? 'transparent' : '#1a1a1a',
-    color: tab === v ? '#111111' : '#888888',
-    transition: 'all 0.2s ease-in-out',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '8px'
+    animation: 'morphFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+    opacity: 0
   }}
->
-    {v === 'list' ? (
-      /* Custom Cyber List Icon */
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="8" y1="6" x2="21" y2="6"></line>
-        <line x1="8" y1="12" x2="21" y2="12"></line>
-        <line x1="8" y1="18" x2="21" y2="18"></line>
-        <line x1="3" y1="6" x2="3.01" y2="6"></line>
-        <line x1="3" y1="12" x2="3.01" y2="12"></line>
-        <line x1="3" y1="18" x2="3.01" y2="18"></line>
-      </svg>
-    ) : (
-      /* Custom Cyber Map Icon */
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon>
-        <line x1="9" y1="3" x2="9" y2="21"></line>
-        <line x1="15" y1="3" x2="15" y2="21"></line>
-      </svg>
-    )}
-    {l}
-  </button>
-))}
-        </div>
+></div>
         {tab === 'list' ? (
-          filtered.map((r) => (
+         filtered.map((r, index) => (
+          <div 
+            key={r.id} 
+            style={{
+              opacity: 0,
+              animation: 'slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              animationDelay: `${index * 60}ms`
+            }}
+          >
             <RouteCard
-              key={r.id}
               route={r}
               selected={selectedId === r.id}
               onSelect={() => setSelectedId((p) => (p === r.id ? null : r.id))}
               onDelete={onDeleteRoute}
-              isAdmin={isAdmin}
+              adminMode={adminMode}
               distance={r.distance}
             />
-          ))
+          </div>
+        ))
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
             <MapView
@@ -1099,14 +1145,84 @@ function CustomerView({
                     setSelectedId((p) => (p === r.id ? null : r.id))
                   }
                   onDelete={onDeleteRoute}
-                  isAdmin={isAdmin}
+                  adminMode={adminMode}
                   distance={r.distance}
                 />
               ))}
             </div>
           </div>
         )}
-      </div>
+        </div> {/* --- CLOSING VIEW MORPH WRAPPER --- */}
+   {/* --- FLOATING THUMB-SIZED BOTTOM NAV --- */}
+<div style={{
+  position: 'fixed',
+  bottom: '16px', /* Just slightly off the absolute bottom for natural thumb resting */
+  left: 0,
+  width: '100%',
+  display: 'flex',
+  justifyContent: 'center', /* Centers the buttons instead of stretching them */
+  gap: '12px',
+  zIndex: 900,
+  pointerEvents: 'none' /* Lets users click *through* the empty space around the buttons */
+}}>
+  
+  <button 
+    onClick={() => setTab('list')}
+    style={{
+      pointerEvents: 'auto', /* Re-enables clicking on the button itself */
+      padding: '10px 24px', /* Compact thumb-sized touch target */
+      borderRadius: '30px', /* Sleek pill shape */
+      background: tab === 'list' ? 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)' : '#1a1a1a',
+      color: tab === 'list' ? '#000' : '#888',
+      fontWeight: 900,
+      fontSize: '13px', 
+      border: tab === 'list' ? '1px solid rgba(255,255,255,0.6)' : '1px solid #333',
+      textShadow: tab === 'list' ? '0px 1px 1px rgba(255, 255, 255, 0.8)' : 'none', 
+      boxShadow: tab === 'list' ? 'inset 0px 2px 4px rgba(255,255,255,0.5), 0px 6px 16px rgba(255, 215, 0, 0.3)' : '0px 6px 16px rgba(0,0,0,0.8)', 
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '6px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    }}
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
+    </svg>
+    List
+  </button>
+  
+  <button 
+    onClick={() => setTab('map')}
+    style={{
+      pointerEvents: 'auto',
+      padding: '10px 24px',
+      borderRadius: '30px',
+      background: tab === 'map' ? 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)' : '#1a1a1a',
+      color: tab === 'map' ? '#000' : '#888',
+      fontWeight: 900,
+      fontSize: '13px',
+      border: tab === 'map' ? '1px solid rgba(255,255,255,0.6)' : '1px solid #333',
+      textShadow: tab === 'map' ? '0px 1px 1px rgba(255, 255, 255, 0.8)' : 'none',
+      boxShadow: tab === 'map' ? 'inset 0px 2px 4px rgba(255,255,255,0.5), 0px 6px 16px rgba(255, 215, 0, 0.3)' : '0px 6px 16px rgba(0,0,0,0.8)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '6px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    }}
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line>
+    </svg>
+    Map
+  </button>
+</div>
+
+{/* Invisible Spacer so the last card doesn't hide behind the floating nav */}
+<div style={{ height: '100px', width: '100%' }}></div>
      {/* --- THE SIDE DRAWER (SLEDGEHAMMER VERSION) --- */}
 {isDrawerOpen && (
   <>
@@ -1219,7 +1335,7 @@ function CustomerView({
 // ── Main Controller Component ──────────────────────────────────────────────────
 export default function App() {
   const [view, setView] = useState('customer');
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminMode, setadminMode] = useState(false);
   const [approvedRoutes, setApprovedRoutes] = useState([]);
   const [pendingRoutes, setPendingRoutes] = useState([]);
   const [deletedBaseIds, setDeletedBaseIds] = useState(new Set());
@@ -1366,7 +1482,7 @@ export default function App() {
       {view === 'login' && (
         <AdminLoginModal
           onSuccess={() => {
-            setIsAdmin(true);
+            setadminMode(true);
             setView('admin');
           }}
           onCancel={() => setView('customer')}
@@ -1386,9 +1502,10 @@ export default function App() {
           onAddRoute={handleSubmitRoute}
           onDeleteRoute={handleDelete}
           onAdminClick={() => {
-            isAdmin ? setView('admin') : setView('login');
+            adminMode ? setView('admin') : setView('login');
           }}
-          isAdmin={isAdmin}
+          adminMode={adminMode}
+          setAdminMode={setadminMode}
         />
       )}
     </div>
