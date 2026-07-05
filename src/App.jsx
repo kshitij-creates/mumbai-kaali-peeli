@@ -280,6 +280,7 @@ function AddRouteForm({ onSubmit, onClose }) {
     fare: '',
     freq: '',
     hours: '',
+    landmarks: '',
   });
   const [isSearching, setIsSearching] = useState(false);
 
@@ -376,7 +377,13 @@ function AddRouteForm({ onSubmit, onClose }) {
           <input required placeholder="Fare (e.g. ₹15-20)" value={otherInfo.fare} onChange={(e) => setOtherInfo({ ...otherInfo, fare: e.target.value })} className="cyber-input" />
           <input required placeholder="Frequency (e.g. Every 5 mins)" value={otherInfo.freq} onChange={(e) => setOtherInfo({ ...otherInfo, freq: e.target.value })} className="cyber-input" />
           <input required placeholder="Hours (e.g. 6 AM - 11 PM)" value={otherInfo.hours} onChange={(e) => setOtherInfo({ ...otherInfo, hours: e.target.value })} className="cyber-input" />
-
+{/* --- NEW LANDMARKS INPUT --- */}
+<input 
+            placeholder="Nearby Landmarks (Optional)" 
+            value={otherInfo.landmarks} 
+            onChange={(e) => setOtherInfo({ ...otherInfo, landmarks: e.target.value })} 
+            className="cyber-input" 
+          />
           <button
             type="submit"
             disabled={isSearching}
@@ -551,8 +558,8 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode })
         )}
       </div>
 
-      {/* Expanded Stops View (When Clicked) */}
-      {selected && (
+     {/* Expanded Stops View (When Clicked) */}
+     {selected && (
         <div
           style={{
             marginTop: 12,
@@ -560,6 +567,17 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode })
             borderTop: `1px solid ${m.color}33`,
           }}
         >
+          {/* --- NEW LANDMARK DISPLAY --- */}
+          {route.landmarks && (
+            <div style={{ fontSize: 12, color: Y, marginBottom: 10, fontWeight: 700, display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+              <span>🏛️</span>
+              <span style={{ color: '#ddd', fontWeight: 500, lineHeight: 1.4 }}>
+                <span style={{ color: Y, fontWeight: 700 }}>Landmarks: </span> 
+                {route.landmarks}
+              </span>
+            </div>
+          )}
+
           <div
             style={{
               display: 'flex',
