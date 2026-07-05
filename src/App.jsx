@@ -1315,7 +1315,7 @@ function CustomerView({
       }}>
         <div style={{ fontSize: 32, marginBottom: '12px' }}>🤫</div>
         <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px 0', fontWeight: 500 }}>
-          Know a secret sharing taxi/auto route? We would be glad if you tell everyone too!
+          Know a secret sharing taxi/auto route? We would be glad if you tell everyone too! (route will be reviewed)
         </p>
         <button
           className="tactile-btn"
