@@ -414,7 +414,7 @@ function AddRouteForm({ onSubmit, onClose }) {
 }
 
 // ── RouteCard ──────────────────────────────────────────────────────────────────
-function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode }) {
+function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, onNavigate }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const m = META[route.type];
   
@@ -586,20 +586,43 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode })
               marginBottom: 8,
             }}
           >
-            {route.stops.map((s, i) => (
+           {route.stops.map((s, i) => {
+            // --- NEW: Check dynamic Firebase path first, then fallback to COORDS dictionary ---
+            let lat, lng;
+            if (route.path && route.path[i]) {
+              lat = Array.isArray(route.path[i]) ? route.path[i][0] : route.path[i].lat;
+              lng = Array.isArray(route.path[i]) ? route.path[i][1] : route.path[i].lng;
+            } else if (COORDS[s]) {
+              lat = COORDS[s].lat;
+              lng = COORDS[s].lng;
+            }
+            
+            const hasCoords = lat !== undefined && lng !== undefined;
+
+            return (
               <span
                 key={i}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevents closing the route card
+                  if (hasCoords && onNavigate) onNavigate(s, lat, lng);
+                }}
                 style={{
                   background: '#252525',
                   color: '#ddd',
                   fontSize: 11,
                   padding: '3px 8px',
                   borderRadius: 10,
+                  cursor: hasCoords ? 'pointer' : 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  border: '1px solid #444' // Gives it a button feel
                 }}
               >
-                {s}
+                {s} {hasCoords && <span title="Get walking directions">🚶</span>}
               </span>
-            ))}
+            );
+          })}
           </div>
           <div style={{ fontSize: 12, color: '#aaa' }}>{route.hours}</div>
         </div>
@@ -608,7 +631,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode })
   );
 }
 // ── V2: Dynamic MapView ────────────────────────────────────────────────────────
-function MapView({ routes, selectedId, onSelect, userLoc }) {
+function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
   const sel = routes.find((r) => r.id === selectedId);
 
   // V2 Update: Check if route has dynamic API 'path' data first, otherwise fall back to COORDS dictionary
@@ -672,6 +695,18 @@ function MapView({ routes, selectedId, onSelect, userLoc }) {
           <Polyline
             positions={lineCoords}
             pathOptions={{ color: META[sel.type].color, weight: 4 }}
+          />
+        )}
+        {/* --- NEW: The Walking Path --- */}
+        {walkingRoute && (
+          <Polyline
+            positions={walkingRoute}
+            pathOptions={{ 
+              color: '#3b82f6', // Bright Blue for walking
+              weight: 4, 
+              dashArray: '10, 10', // Makes it a dotted line!
+              opacity: 0.8
+            }}
           />
         )}
         {allMarkers.map((m, i) => (
@@ -816,6 +851,7 @@ function CustomerView({
   onAdminClick,
   adminMode,
   setAdminMode, // <-- Added this!
+  showToast, // <-- Add it right here!
 }) {
   const [adminAttempt, setAdminAttempt] = useState(0); // <-- Safely inside the component!
   const [search, setSearch] = useState('');
@@ -829,6 +865,7 @@ function CustomerView({
   // NEW: Added states for robust error handling and loading indicators
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [walkingRoute, setWalkingRoute] = useState(null);
 
   // NEW: Upgraded click handler that manages the loading state and catches errors gracefully
   const handleNearMeClick = () => {
@@ -853,6 +890,33 @@ function CustomerView({
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+  };
+
+  // --- NEW: Fetch walking route from OSRM ---
+  const handleNavigateToStop = async (stopName, lat, lng) => {
+    if (!nearMe) {
+      alert("Please click '📍 Near Me' first so we know your starting point!");
+      return;
+    }
+    
+    showToast(`Calculating walking route to ${stopName}...`, '#FFD700', '#000');
+    
+    try {
+      // OSRM requires Longitude,Latitude order!
+      const url = `https://router.project-osrm.org/route/v1/foot/${nearMe.lng},${nearMe.lat};${lng},${lat}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      if (data.routes && data.routes[0]) {
+        // Leaflet expects [Lat, Lng] order, so we flip them back
+        const path = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        setWalkingRoute(path);
+        setTab('map'); // Instantly flip them to the map to see the line!
+      }
+    } catch (err) {
+      console.error("Routing error:", err);
+      alert("Could not calculate route. Try again.");
+    }
   };
 
   const filtered = useMemo(() => {
@@ -1144,6 +1208,7 @@ function CustomerView({
               onDelete={onDeleteRoute}
               adminMode={adminMode}
               distance={r.distance}
+              onNavigate={handleNavigateToStop} // <-- Add this!
             />
           </div>
         ))
@@ -1154,6 +1219,7 @@ function CustomerView({
               selectedId={selectedId}
               onSelect={(id) => setSelectedId((p) => (p === id ? null : id))}
               userLoc={nearMe}
+              walkingRoute={walkingRoute} // <-- Add this right here!
             />
             <div style={{ marginTop: 8 }}>
               {filtered.map((r) => (
@@ -1167,6 +1233,7 @@ function CustomerView({
                   onDelete={onDeleteRoute}
                   adminMode={adminMode}
                   distance={r.distance}
+                  onNavigate={handleNavigateToStop} // <-- Add this!
                 />
               ))}
             </div>
@@ -1526,6 +1593,7 @@ export default function App() {
           }}
           adminMode={adminMode}
           setAdminMode={setadminMode}
+          showToast={showToast} // <-- Handing it through the door here!
         />
       )}
     </div>
