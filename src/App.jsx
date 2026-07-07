@@ -551,7 +551,19 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, o
           color: MUTED,
         }}
       >
-        <span>💰 {route.fare}</span>
+      <span style={{ 
+  fontFamily: '"Share Tech Mono", monospace', 
+  color: '#ff3333', /* Auto meter red */
+  textShadow: '0px 0px 8px rgba(255, 51, 51, 0.8)', /* The LED glow effect */
+  fontSize: '15px',
+  letterSpacing: '1px',
+  background: '#111',
+  padding: '2px 6px',
+  borderRadius: '4px',
+  border: '1px solid #333'
+}}>
+  ₹ {route.fare.replace('₹', '').trim()}
+</span>
         <span>🔄 {route.freq}</span>
         {distLabel && (
           <span style={{ color: Y, fontWeight: 700 }}>📍 {distLabel} away</span>
@@ -1071,7 +1083,7 @@ function CustomerView({
             }} style={{ cursor: 'pointer' }}>
               <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <img src={taxiLogo} alt="logo" style={{ width: '32px', height: '32px' }} />
-                MeterDown
+                Fare Per Share
               </h1>
             </div>
           </div>
