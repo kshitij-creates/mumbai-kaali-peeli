@@ -3,6 +3,9 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import taxiLogo from './assets/taxi.svg';
+import taxiIcon from './assets/taxi.svg';
+import autoIcon from './assets/auto.svg';
 
 // ── ⚠️ FIREBASE SETUP ────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -121,10 +124,20 @@ const Y = '#FFD700',
   BORDER = '#333',
   TXT = '#FFF',
   MUTED = '#A0A0A0';
-const META = {
-  share_taxi: { l: '🚕 Share Taxi', color: Y, bg: '#2A2400' },
-  auto: { l: '🛺 Auto', color: '#22c55e', bg: '#062a14' },
-};
+  const META = {
+    share_taxi: { 
+      l: 'Share Taxi', 
+      icon: taxiIcon, // No quotes! Using the imported variable
+      color: Y, 
+      bg: '#2A2400' 
+    },
+    auto: { 
+      l: 'Auto', 
+      icon: autoIcon, // No quotes! Using the imported variable
+      color: '#22c55e', 
+      bg: '#062a14' 
+    },
+  };
 const inp = {
   width: '100%',
   padding: '12px',
@@ -166,8 +179,16 @@ const TypeBadge = ({ type }) => (
       padding: '4px 8px',
       borderRadius: 20,
       whiteSpace: 'nowrap',
+      display: 'flex', 
+      alignItems: 'center',
+      gap: '6px' 
     }}
   >
+    <img 
+      src={META[type].icon} 
+      alt={META[type].l} 
+      style={{ width: '16px', height: '16px' }} 
+    />
     {META[type].l}
   </div>
 );
@@ -259,6 +280,7 @@ function AddRouteForm({ onSubmit, onClose }) {
     fare: '',
     freq: '',
     hours: '',
+    landmarks: '',
   });
   const [isSearching, setIsSearching] = useState(false);
 
@@ -280,7 +302,6 @@ function AddRouteForm({ onSubmit, onClose }) {
       if (coords) stopCoords.push([coords.lat, coords.lng]);
     }
 
-    // Auto-generate name: "First Stop → Last Stop"
     const routeName = `${stopsList[0]} → ${stopsList[stopsList.length - 1]}`;
 
     onSubmit({
@@ -298,7 +319,8 @@ function AddRouteForm({ onSubmit, onClose }) {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.8)',
+        background: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(8px)',
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
@@ -306,27 +328,16 @@ function AddRouteForm({ onSubmit, onClose }) {
         padding: 16,
       }}
     >
-      <div
-        style={{
-          background: CARD,
-          padding: 20,
-          borderRadius: 16,
-          border: `1px solid ${BORDER}`,
-          width: '100%',
-          maxWidth: 400,
-        }}
-      >
-        <h2 style={{ margin: '0 0 16px', color: Y }}>Add New Route</h2>
+      <div className="cyber-modal" style={{ width: '100%', maxWidth: 400 }}>
+        <h2 style={{ margin: '0 0 16px', color: '#FFD700' }}>Add New Route</h2>
         <form
           onSubmit={submit}
           style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
         >
           <select
             value={otherInfo.type}
-            onChange={(e) =>
-              setOtherInfo({ ...otherInfo, type: e.target.value })
-            }
-            style={inp}
+            onChange={(e) => setOtherInfo({ ...otherInfo, type: e.target.value })}
+            className="cyber-input"
           >
             <option value="share_taxi">🚕 Share Taxi</option>
             <option value="auto">🛺 Auto</option>
@@ -337,13 +348,14 @@ function AddRouteForm({ onSubmit, onClose }) {
               placeholder="Add stop (e.g. Bandra)"
               value={currentStop}
               onChange={(e) => setCurrentStop(e.target.value)}
-              style={inp}
+              className="cyber-input"
             />
             <button
               type="button"
               onClick={addStop}
+              className="tactile-btn"
               style={{
-                background: Y,
+                background: '#FFD700',
                 border: 'none',
                 borderRadius: 8,
                 padding: '0 15px',
@@ -353,76 +365,46 @@ function AddRouteForm({ onSubmit, onClose }) {
               +
             </button>
           </div>
+          
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {stopsList.map((s, i) => (
-              <span
-                key={i}
-                style={{
-                  background: '#333',
-                  padding: '4px 10px',
-                  borderRadius: 12,
-                  fontSize: 12,
-                }}
-              >
+              <span key={i} style={{ background: '#333', padding: '4px 10px', borderRadius: 12, fontSize: 12, color: '#fff' }}>
                 {s}
               </span>
             ))}
           </div>
 
-          <input
-            required
-            placeholder="Fare (e.g. ₹15-20)"
-            value={otherInfo.fare}
-            onChange={(e) =>
-              setOtherInfo({ ...otherInfo, fare: e.target.value })
-            }
-            style={inp}
+          <input required placeholder="Fare (e.g. ₹15-20)" value={otherInfo.fare} onChange={(e) => setOtherInfo({ ...otherInfo, fare: e.target.value })} className="cyber-input" />
+          <input required placeholder="Frequency (e.g. Every 5 mins)" value={otherInfo.freq} onChange={(e) => setOtherInfo({ ...otherInfo, freq: e.target.value })} className="cyber-input" />
+          <input required placeholder="Hours (e.g. 6 AM - 11 PM)" value={otherInfo.hours} onChange={(e) => setOtherInfo({ ...otherInfo, hours: e.target.value })} className="cyber-input" />
+{/* --- NEW LANDMARKS INPUT --- */}
+<input 
+            placeholder="Nearby Landmarks (Optional)" 
+            value={otherInfo.landmarks} 
+            onChange={(e) => setOtherInfo({ ...otherInfo, landmarks: e.target.value })} 
+            className="cyber-input" 
           />
-          <input
-            required
-            placeholder="Frequency (e.g. Every 5 mins)"
-            value={otherInfo.freq}
-            onChange={(e) =>
-              setOtherInfo({ ...otherInfo, freq: e.target.value })
-            }
-            style={inp}
-          />
-          <input
-            required
-            placeholder="Hours (e.g. 6 AM - 11 PM)"
-            value={otherInfo.hours}
-            onChange={(e) =>
-              setOtherInfo({ ...otherInfo, hours: e.target.value })
-            }
-            style={inp}
-          />
-
           <button
             type="submit"
             disabled={isSearching}
+            className="tactile-btn"
             style={{
               marginTop: 10,
-              background: isSearching ? '#888' : Y,
-              color: BK,
+              background: isSearching ? '#888' : '#FFD700',
               padding: 12,
               borderRadius: 8,
               fontWeight: 700,
               border: 'none',
+              cursor: 'pointer'
             }}
           >
-            {isSearching ? 'Mapping...' : 'Create Route'}
+            {isSearching ? (
+              <>
+                <span className="pulse-dot"></span> Mapping...
+              </>
+            ) : 'Create Route'}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: '#333',
-              color: TXT,
-              padding: 12,
-              borderRadius: 8,
-              border: 'none',
-            }}
-          >
+          <button type="button" onClick={onClose} className="tactile-btn" style={{ background: '#333', color: '#fff', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer' }}>
             Cancel
           </button>
         </form>
@@ -432,9 +414,10 @@ function AddRouteForm({ onSubmit, onClose }) {
 }
 
 // ── RouteCard ──────────────────────────────────────────────────────────────────
-function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
+function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, onNavigate }) {
   const [confirmDel, setConfirmDel] = useState(false);
   const m = META[route.type];
+  
   const distLabel =
     distance != null
       ? distance < 0.1
@@ -443,8 +426,10 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
         ? `${Math.round(distance * 1000)}m`
         : `${distance.toFixed(1)} km`
       : null;
+
   return (
     <div
+      className="route-card" /* This triggers the neon hover effect from App.css */
       style={{
         position: 'relative',
         background: selected ? m.bg : CARD,
@@ -453,9 +438,11 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
         padding: '12px 14px',
         marginBottom: 8,
         cursor: 'pointer',
+
       }}
       onClick={() => !confirmDel && onSelect()}
     >
+      {/* Hidden Delete Overlay */}
       {confirmDel && (
         <div
           onClick={(e) => e.stopPropagation()}
@@ -468,7 +455,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 10,
+            gap: '10px',
             zIndex: 10,
           }}
         >
@@ -486,6 +473,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
                 border: 'none',
                 borderRadius: 6,
                 fontWeight: 800,
+                cursor: 'pointer'
               }}
             >
               Delete
@@ -501,6 +489,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
                 color: TXT,
                 border: 'none',
                 borderRadius: 6,
+                cursor: 'pointer'
               }}
             >
               Cancel
@@ -508,6 +497,8 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
           </div>
         </div>
       )}
+
+      {/* Top Row: Route Name & Badge */}
       <div
         style={{
           display: 'flex',
@@ -520,14 +511,16 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
             fontWeight: 700,
             fontSize: 14,
             color: TXT,
-            paddingRight: isAdmin ? 32 : 0,
+            paddingRight: adminMode ? 32 : 0,
           }}
         >
           {route.name}
         </div>
         <TypeBadge type={route.type} />
       </div>
-      {isAdmin && (
+
+      {/* Admin Trash Icon */}
+      {adminMode && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -547,6 +540,8 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
           🗑️
         </button>
       )}
+
+      {/* Bottom Row: Fare, Frequency, Distance */}
       <div
         style={{
           display: 'flex',
@@ -556,13 +551,27 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
           color: MUTED,
         }}
       >
-        <span>💰 {route.fare}</span>
+      <span style={{ 
+  fontFamily: '"Share Tech Mono", monospace', 
+  color: '#ff3333', /* Auto meter red */
+  textShadow: '0px 0px 8px rgba(255, 51, 51, 0.8)', /* The LED glow effect */
+  fontSize: '15px',
+  letterSpacing: '1px',
+  background: '#111',
+  padding: '2px 6px',
+  borderRadius: '4px',
+  border: '1px solid #333'
+}}>
+  ₹ {route.fare.replace('₹', '').trim()}
+</span>
         <span>🔄 {route.freq}</span>
         {distLabel && (
           <span style={{ color: Y, fontWeight: 700 }}>📍 {distLabel} away</span>
         )}
       </div>
-      {selected && (
+
+     {/* Expanded Stops View (When Clicked) */}
+     {selected && (
         <div
           style={{
             marginTop: 12,
@@ -570,6 +579,17 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
             borderTop: `1px solid ${m.color}33`,
           }}
         >
+          {/* --- NEW LANDMARK DISPLAY --- */}
+          {route.landmarks && (
+            <div style={{ fontSize: 12, color: Y, marginBottom: 10, fontWeight: 700, display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+              <span>🏛️</span>
+              <span style={{ color: '#ddd', fontWeight: 500, lineHeight: 1.4 }}>
+                <span style={{ color: Y, fontWeight: 700 }}>Landmarks: </span> 
+                {route.landmarks}
+              </span>
+            </div>
+          )}
+
           <div
             style={{
               display: 'flex',
@@ -578,20 +598,43 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
               marginBottom: 8,
             }}
           >
-            {route.stops.map((s, i) => (
+           {route.stops.map((s, i) => {
+            // --- NEW: Check dynamic Firebase path first, then fallback to COORDS dictionary ---
+            let lat, lng;
+            if (route.path && route.path[i]) {
+              lat = Array.isArray(route.path[i]) ? route.path[i][0] : route.path[i].lat;
+              lng = Array.isArray(route.path[i]) ? route.path[i][1] : route.path[i].lng;
+            } else if (COORDS[s]) {
+              lat = COORDS[s].lat;
+              lng = COORDS[s].lng;
+            }
+            
+            const hasCoords = lat !== undefined && lng !== undefined;
+
+            return (
               <span
                 key={i}
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevents closing the route card
+                  if (hasCoords && onNavigate) onNavigate(s, lat, lng);
+                }}
                 style={{
                   background: '#252525',
                   color: '#ddd',
                   fontSize: 11,
                   padding: '3px 8px',
                   borderRadius: 10,
+                  cursor: hasCoords ? 'pointer' : 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  border: '1px solid #444' // Gives it a button feel
                 }}
               >
-                {s}
+                {s} {hasCoords && <span title="Get walking directions">🚶</span>}
               </span>
-            ))}
+            );
+          })}
           </div>
           <div style={{ fontSize: 12, color: '#aaa' }}>{route.hours}</div>
         </div>
@@ -599,9 +642,8 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, isAdmin }) {
     </div>
   );
 }
-
 // ── V2: Dynamic MapView ────────────────────────────────────────────────────────
-function MapView({ routes, selectedId, onSelect, userLoc }) {
+function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
   const sel = routes.find((r) => r.id === selectedId);
 
   // V2 Update: Check if route has dynamic API 'path' data first, otherwise fall back to COORDS dictionary
@@ -665,6 +707,18 @@ function MapView({ routes, selectedId, onSelect, userLoc }) {
           <Polyline
             positions={lineCoords}
             pathOptions={{ color: META[sel.type].color, weight: 4 }}
+          />
+        )}
+        {/* --- NEW: The Walking Path --- */}
+        {walkingRoute && (
+          <Polyline
+            positions={walkingRoute}
+            pathOptions={{ 
+              color: '#3b82f6', // Bright Blue for walking
+              weight: 4, 
+              dashArray: '10, 10', // Makes it a dotted line!
+              opacity: 0.8
+            }}
           />
         )}
         {allMarkers.map((m, i) => (
@@ -807,18 +861,23 @@ function CustomerView({
   onAddRoute,
   onDeleteRoute,
   onAdminClick,
-  isAdmin,
+  adminMode,
+  setAdminMode, // <-- Added this!
+  showToast, // <-- Add it right here!
 }) {
+  const [adminAttempt, setAdminAttempt] = useState(0); // <-- Safely inside the component!
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
   const [tab, setTab] = useState('list');
   const [showForm, setShowForm] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [nearMe, setNearMe] = useState(null);
   
   // NEW: Added states for robust error handling and loading indicators
   const [isLocating, setIsLocating] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [walkingRoute, setWalkingRoute] = useState(null);
 
   // NEW: Upgraded click handler that manages the loading state and catches errors gracefully
   const handleNearMeClick = () => {
@@ -843,6 +902,33 @@ function CustomerView({
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+  };
+
+  // --- NEW: Fetch walking route from OSRM ---
+  const handleNavigateToStop = async (stopName, lat, lng) => {
+    if (!nearMe) {
+      alert("Please click '📍 Near Me' first so we know your starting point!");
+      return;
+    }
+    
+    showToast(`Calculating walking route to ${stopName}...`, '#FFD700', '#000');
+    
+    try {
+      // OSRM requires Longitude,Latitude order!
+      const url = `https://router.project-osrm.org/route/v1/foot/${nearMe.lng},${nearMe.lat};${lng},${lat}?overview=full&geometries=geojson`;
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      if (data.routes && data.routes[0]) {
+        // Leaflet expects [Lat, Lng] order, so we flip them back
+        const path = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        setWalkingRoute(path);
+        setTab('map'); // Instantly flip them to the map to see the line!
+      }
+    } catch (err) {
+      console.error("Routing error:", err);
+      alert("Could not calculate route. Try again.");
+    }
   };
 
   const filtered = useMemo(() => {
@@ -896,6 +982,63 @@ function CustomerView({
 
   return (
     <div>
+    <style>{`
+        @keyframes slideUpFade {
+          from {
+            opacity: 0;
+            transform: translateY(24px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        /* --- NEW MORPH ANIMATION --- */
+        @keyframes morphFade {
+          0% { 
+            opacity: 0; 
+            transform: scale(0.97); 
+          }
+          100% { 
+            opacity: 1; 
+            transform: scale(1); 
+          }
+        }
+        /* --- BULLETPROOF HAPTIC CARDS --- */
+        .route-card {
+          transition: all 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
+        }
+        .route-card:active {
+          transform: scale(0.96) !important;
+          box-shadow: 0px 2px 4px rgba(0,0,0,0.9) !important;
+          border-color: rgba(255, 215, 0, 0.5) !important;
+        }
+        /* --- SHIMEJI VEHICLE TRACK --- */
+    .shimeji {
+      position: absolute;
+      width: 24px;
+      height: 14px;
+      margin-top: -14px; /* Lifts the car so wheels sit perfectly on the line */
+      margin-left: -12px;
+      z-index: 10;
+      pointer-events: none;
+      transform-origin: 50% 100%; /* Forces the car to pivot on its back wheels during turns */
+      animation: perimeterDrive 12s linear infinite;
+    }
+    
+        @keyframes perimeterDrive {
+          0% { left: 0%; top: 0%; transform: rotate(0deg); }
+          45% { left: 100%; top: 0%; transform: rotate(0deg); }
+          46% { left: 100%; top: 0%; transform: rotate(90deg); } 
+          49% { left: 100%; top: 100%; transform: rotate(90deg); }
+          50% { left: 100%; top: 100%; transform: rotate(180deg); } 
+          95% { left: 0%; top: 100%; transform: rotate(180deg); }
+          96% { left: 0%; top: 100%; transform: rotate(270deg); } 
+          99% { left: 0%; top: 0%; transform: rotate(270deg); }
+          100% { left: 0%; top: 0%; transform: rotate(360deg); } 
+        }
+      `}</style>
       <div style={{ background: BK, borderBottom: '1px solid #2a2a2a' }}>
         <Stripe />
         <div
@@ -908,36 +1051,76 @@ function CustomerView({
             alignItems: 'center',
           }}
         >
-          <div>
-            <h1 style={{ margin: 0, color: Y, fontSize: 20, fontWeight: 900 }}>
-              🚕 Mumbai Kaali-Peeli
-            </h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Hamburger Icon */}
+            <button 
+              onClick={() => setIsDrawerOpen(true)}
+              style={{ background: 'transparent', border: 'none', color: '#FFF', padding: '4px', cursor: 'pointer', display: 'flex' }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+            
+            {/* --- WRAPPED LOGO WITH SECRET HANDSHAKE & DASHBOARD SHORTCUT --- */}
+            <div onClick={() => {
+              if (adminMode) {
+                onAdminClick();
+                return;
+              }
+              const newCount = adminAttempt + 1;
+              setAdminAttempt(newCount);
+              if (newCount === 5) {
+                const password = prompt("Enter Admin Password:");
+                if (password === "KSHITIJ123") {
+                  setAdminMode(true);
+                  alert("Admin Mode Activated! Tap the logo one more time to open the Dashboard.");
+                }
+                setAdminAttempt(0);
+              }
+            }} style={{ cursor: 'pointer' }}>
+              <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src={taxiLogo} alt="logo" style={{ width: '32px', height: '32px' }} />
+                Fare Per Share
+              </h1>
+            </div>
           </div>
-          <button
-            onClick={onAdminClick}
-            style={{
-              background: isAdmin ? '#16a34a' : '#1a1a1a',
-              color: isAdmin ? '#fff' : Y,
-              border: isAdmin ? 'none' : `1.5px solid ${Y}44`,
-              padding: '6px 12px',
-              borderRadius: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            🛡️ {isAdmin ? 'Admin Mode' : 'Admin'}{' '}
-            {pendingCount > 0 && `(${pendingCount})`}
-          </button>
         </div>
-        <div
-          style={{ padding: '0 16px 14px', maxWidth: 960, margin: '0 auto' }}
-        >
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search stops (e.g. Andheri, Bandra...)"
-            style={inp}
-          />
+        
+        <div style={{ padding: '0 16px 14px', maxWidth: 960, margin: '0 auto' }}>
+         {/* --- SHIMEJI SEARCH BAR WRAPPER --- */}
+    <div style={{ position: 'relative', width: '100%', borderRadius: '8px' }}>
+      
+      {/* The Kaali-Peeli Taxi */}
+      <div className="shimeji" style={{ animationDelay: '0s' }}>
+        <svg width="24" height="14" viewBox="0 0 24 14">
+          <path d="M2 10 L2 5 L6 2 L16 2 L20 5 L22 10 Z" fill="#FFD700" stroke="#000" strokeWidth="1"/>
+          <path d="M6 2 L16 2 L18 5 L4 5 Z" fill="#111"/>
+          <circle cx="5" cy="12" r="2" fill="#333"/><circle cx="17" cy="12" r="2" fill="#333"/>
+          <circle cx="14" cy="4" r="1.5" fill="#fff"/>
+        </svg>
+      </div>
+
+      {/* The Auto Rickshaw */}
+      <div className="shimeji" style={{ animationDelay: '-6s' }}>
+        <svg width="22" height="14" viewBox="0 0 22 14">
+          <path d="M3 10 L3 2 L14 2 L18 6 L19 10 Z" fill="#111" stroke="#FFD700" strokeWidth="1"/>
+          <path d="M5 2 L12 2 L12 6 L4 6 Z" fill="none" stroke="#FFD700"/>
+          <circle cx="6" cy="12" r="1.5" fill="#333"/><circle cx="16" cy="12" r="1.5" fill="#333"/>
+          <circle cx="9" cy="4.5" r="1.5" fill="#fff"/>
+        </svg>
+      </div>
+
+      {/* Your Original Search Bar */}
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search stops (e.g. Andheri, Bandra...)"
+        style={{ ...inp, position: 'relative', zIndex: 5 }} 
+      />
+    </div>
         </div>
         <Stripe />
       </div>
@@ -963,81 +1146,84 @@ function CustomerView({
           
           {/* NEW: Updated button layout with the loading ternary and error message nested safely */}
           <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <button
-              onClick={handleNearMeClick}
-              disabled={isLocating}
-              style={{
-                background: nearMe ? '#0f172a' : CARD,
-                color: nearMe ? '#60a5fa' : MUTED,
-                padding: '6px 12px',
-                borderRadius: 12,
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {isLocating ? "Locating..." : "📍 Near Me"}
-            </button>
+          <button
+  onClick={handleNearMeClick}
+  disabled={isLocating}
+  className={`tactile-btn ${!isLocating ? 'near-me-glow' : ''}`}
+  style={{
+    background: isLocating ? '#0f172a' : (nearMe ? '#0f172a' : CARD),
+    color: nearMe ? '#60a5fa' : MUTED,
+    padding: '6px 12px',
+    borderRadius: 12,
+    border: isLocating ? '1px solid rgba(0, 255, 65, 0.6)' : 'none', // Matching green border
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '100px',
+    minHeight: '36px',
+    transition: 'all 0.3s ease'
+  }}
+>
+  <style>{`
+    @keyframes svg-radar-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `}</style>
+
+  {isLocating ? (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      style={{ animation: 'svg-radar-spin 1.2s linear infinite' }}
+    >
+      {/* Outer grid ring - Faded Green */}
+      <circle cx="12" cy="12" r="10" stroke="rgba(0, 255, 65, 0.3)" strokeWidth="2" fill="none" />
+      {/* The sweeping radar wedge - Bright Green */}
+      <path d="M12 12 L12 2 A10 10 0 0 1 22 12 Z" fill="rgba(0, 255, 65, 0.9)" />
+      {/* Center blip */}
+      <circle cx="12" cy="12" r="2" fill="#111" />
+    </svg>
+  ) : (
+    <span>📍 Near Me</span>
+  )}
+</button>
             {locationError && <div style={{ color: 'red', fontSize: '11px', marginTop: '2px', position: 'absolute', transform: 'translateY(32px)' }}>{locationError}</div>}
           </div>
           
-          <button
-            onClick={() => setShowForm(true)}
+          
+        </div>
+        {/* --- VIEW MORPH WRAPPER --- */}
+<div 
+  key={tab} 
+  style={{
+    animation: 'morphFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+    opacity: 0
+  }}
+></div>
+        {tab === 'list' ? (
+         filtered.map((r, index) => (
+          <div 
+            key={r.id} 
             style={{
-              background: Y,
-              color: BK,
-              padding: '6px 12px',
-              borderRadius: 12,
-              border: 'none',
-              fontWeight: 800,
-              cursor: 'pointer',
+              opacity: 0,
+              animation: 'slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              animationDelay: `${index * 60}ms`
             }}
           >
-            ➕ Add
-          </button>
-        </div>
-        <div
-          style={{
-            display: 'flex',
-            background: '#161616',
-            borderRadius: 12,
-            padding: 3,
-            marginBottom: 12,
-          }}
-        >
-          {[
-            ['list', '📋 List'],
-            ['map', '🗺️ Map'],
-          ].map(([v, l]) => (
-            <button
-              key={v}
-              onClick={() => setTab(v)}
-              style={{
-                flex: 1,
-                padding: 6,
-                background: tab === v ? Y : 'transparent',
-                color: tab === v ? BK : MUTED,
-                border: 'none',
-                borderRadius: 10,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {l}
-            </button>
-          ))}
-        </div>
-        {tab === 'list' ? (
-          filtered.map((r) => (
             <RouteCard
-              key={r.id}
               route={r}
               selected={selectedId === r.id}
               onSelect={() => setSelectedId((p) => (p === r.id ? null : r.id))}
               onDelete={onDeleteRoute}
-              isAdmin={isAdmin}
+              adminMode={adminMode}
               distance={r.distance}
+              onNavigate={handleNavigateToStop} // <-- Add this!
             />
-          ))
+          </div>
+        ))
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
             <MapView
@@ -1045,6 +1231,7 @@ function CustomerView({
               selectedId={selectedId}
               onSelect={(id) => setSelectedId((p) => (p === id ? null : id))}
               userLoc={nearMe}
+              walkingRoute={walkingRoute} // <-- Add this right here!
             />
             <div style={{ marginTop: 8 }}>
               {filtered.map((r) => (
@@ -1056,14 +1243,184 @@ function CustomerView({
                     setSelectedId((p) => (p === r.id ? null : r.id))
                   }
                   onDelete={onDeleteRoute}
-                  isAdmin={isAdmin}
+                  adminMode={adminMode}
                   distance={r.distance}
+                  onNavigate={handleNavigateToStop} // <-- Add this!
                 />
               ))}
             </div>
           </div>
         )}
+        </div> {/* --- CLOSING VIEW MORPH WRAPPER --- */}
+   {/* --- FLOATING THUMB-SIZED BOTTOM NAV --- */}
+<div style={{
+  position: 'fixed',
+  bottom: '16px', /* Just slightly off the absolute bottom for natural thumb resting */
+  left: 0,
+  width: '100%',
+  display: 'flex',
+  justifyContent: 'center', /* Centers the buttons instead of stretching them */
+  gap: '12px',
+  zIndex: 900,
+  pointerEvents: 'none' /* Lets users click *through* the empty space around the buttons */
+}}>
+  
+  <button 
+    onClick={() => setTab('list')}
+    style={{
+      pointerEvents: 'auto', /* Re-enables clicking on the button itself */
+      padding: '10px 24px', /* Compact thumb-sized touch target */
+      borderRadius: '30px', /* Sleek pill shape */
+      background: tab === 'list' ? 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)' : '#1a1a1a',
+      color: tab === 'list' ? '#000' : '#888',
+      fontWeight: 900,
+      fontSize: '13px', 
+      border: tab === 'list' ? '1px solid rgba(255,255,255,0.6)' : '1px solid #333',
+      textShadow: tab === 'list' ? '0px 1px 1px rgba(255, 255, 255, 0.8)' : 'none', 
+      boxShadow: tab === 'list' ? 'inset 0px 2px 4px rgba(255,255,255,0.5), 0px 6px 16px rgba(255, 215, 0, 0.3)' : '0px 6px 16px rgba(0,0,0,0.8)', 
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '6px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    }}
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
+    </svg>
+    List
+  </button>
+  
+  <button 
+    onClick={() => setTab('map')}
+    style={{
+      pointerEvents: 'auto',
+      padding: '10px 24px',
+      borderRadius: '30px',
+      background: tab === 'map' ? 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)' : '#1a1a1a',
+      color: tab === 'map' ? '#000' : '#888',
+      fontWeight: 900,
+      fontSize: '13px',
+      border: tab === 'map' ? '1px solid rgba(255,255,255,0.6)' : '1px solid #333',
+      textShadow: tab === 'map' ? '0px 1px 1px rgba(255, 255, 255, 0.8)' : 'none',
+      boxShadow: tab === 'map' ? 'inset 0px 2px 4px rgba(255,255,255,0.5), 0px 6px 16px rgba(255, 215, 0, 0.3)' : '0px 6px 16px rgba(0,0,0,0.8)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      gap: '6px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease'
+    }}
+  >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line>
+    </svg>
+    Map
+  </button>
+</div>
+
+{/* Invisible Spacer so the last card doesn't hide behind the floating nav */}
+<div style={{ height: '100px', width: '100%' }}></div>
+     {/* --- THE SIDE DRAWER (SLEDGEHAMMER VERSION) --- */}
+{isDrawerOpen && (
+  <>
+    {/* Force animations directly into the DOM */}
+    <style>{`
+      @keyframes slideInLeft {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(0); }
+      }
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+    `}</style>
+
+    {/* Background Overlay (Click to close) */}
+    <div 
+      onClick={() => setIsDrawerOpen(false)}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 999,
+        animation: 'fadeIn 0.2s ease-out forwards'
+      }}
+    />
+    
+    {/* Sliding Panel */}
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        height: '100%',
+        width: '280px',
+        background: '#0a0a0a',
+        borderRight: '1px solid #222',
+        boxShadow: '4px 0 24px rgba(0,0,0,0.8)',
+        zIndex: 1000,
+        animation: 'slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '24px 20px',
+        boxSizing: 'border-box'
+      }}
+    >
+      
+      {/* Drawer Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <h2 style={{ margin: 0, color: '#FFF', fontSize: 20 }}>Menu</h2>
+        <button 
+          onClick={() => setIsDrawerOpen(false)} 
+          style={{ background: 'transparent', border: 'none', color: '#888', fontSize: 24, cursor: 'pointer' }}
+        >
+          ✖
+        </button>
       </div>
+
+      {/* Your Awesome CTA Block */}
+      <div style={{ 
+        background: '#161616', 
+        border: '1px dashed #FFD700', 
+        borderRadius: 12, 
+        padding: '20px', 
+        textAlign: 'center' 
+      }}>
+        <div style={{ fontSize: 32, marginBottom: '12px' }}>🤫</div>
+        <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px 0', fontWeight: 500 }}>
+          Know a secret sharing taxi/auto route? We would be glad if you tell everyone too! (route will be reviewed)
+        </p>
+        <button
+          className="tactile-btn"
+          onClick={() => {
+            setIsDrawerOpen(false); 
+            setShowForm(true);      
+          }}
+          style={{ 
+            width: '100%', 
+            padding: '12px', 
+            borderRadius: 8, 
+            fontWeight: 900,
+            fontSize: 16,
+            background: 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)',
+            color: '#111',
+            border: 'none',
+            cursor: 'pointer'
+          }}
+        >
+          + Add Route
+        </button>
+      </div>
+
+    </div>
+  </>
+)}
       {showForm && (
         <AddRouteForm
           onSubmit={onAddRoute}
@@ -1077,7 +1434,7 @@ function CustomerView({
 // ── Main Controller Component ──────────────────────────────────────────────────
 export default function App() {
   const [view, setView] = useState('customer');
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminMode, setadminMode] = useState(false);
   const [approvedRoutes, setApprovedRoutes] = useState([]);
   const [pendingRoutes, setPendingRoutes] = useState([]);
   const [deletedBaseIds, setDeletedBaseIds] = useState(new Set());
@@ -1155,7 +1512,7 @@ export default function App() {
   
     // 3. Send the clean, geocoded data to Firebase
     await addDoc(collection(db, 'pending_routes'), sanitizedRoute);
-    showToast('✅ Route submitted to Firebase cloud!');
+    showToast('✅ Route submitted to Admin for review!');
   };
   const handleDelete = async (id) => {
     if (BASE_ROUTES.some((r) => r.id === id)) {
@@ -1224,7 +1581,7 @@ export default function App() {
       {view === 'login' && (
         <AdminLoginModal
           onSuccess={() => {
-            setIsAdmin(true);
+            setadminMode(true);
             setView('admin');
           }}
           onCancel={() => setView('customer')}
@@ -1244,9 +1601,11 @@ export default function App() {
           onAddRoute={handleSubmitRoute}
           onDeleteRoute={handleDelete}
           onAdminClick={() => {
-            isAdmin ? setView('admin') : setView('login');
+            adminMode ? setView('admin') : setView('login');
           }}
-          isAdmin={isAdmin}
+          adminMode={adminMode}
+          setAdminMode={setadminMode}
+          showToast={showToast} // <-- Handing it through the door here!
         />
       )}
     </div>
