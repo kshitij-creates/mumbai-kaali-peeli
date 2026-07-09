@@ -3,6 +3,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Analytics } from '@vercel/analytics/react';
 import taxiLogo from './assets/taxi.svg';
 import taxiIcon from './assets/taxi.svg';
 import autoIcon from './assets/auto.svg';
@@ -1608,6 +1609,7 @@ export default function App() {
           showToast={showToast} // <-- Handing it through the door here!
         />
       )}
+      <Analytics />
     </div>
   );
 }
