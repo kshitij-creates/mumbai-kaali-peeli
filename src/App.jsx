@@ -37,6 +37,7 @@ const COORDS = {
   CST: { lat: 18.9398, lng: 72.8355 },
   Churchgate: { lat: 18.9354, lng: 72.8264 },
   Colaba: { lat: 18.9067, lng: 72.8147 },
+  "thane station (w)": { lat: 19.1860, lng: 72.9759 },
 };
 
 const BASE_ROUTES = [
@@ -409,19 +410,74 @@ export default function App() {
   );
 
   const handleSubmitRoute = async (r) => {
-    // 1. Create a clean copy of the route data
+    // 1. Create a clean copy and strip any 'undefined' values that make Firebase crash
     const sanitizedRoute = { ...r };
-  
-    // 2. Hunt down any arrays and smash them flat!
+    
     Object.keys(sanitizedRoute).forEach(key => {
+      if (sanitizedRoute[key] === undefined) delete sanitizedRoute[key];
       if (Array.isArray(sanitizedRoute[key])) {
         sanitizedRoute[key] = sanitizedRoute[key].flat(Infinity);
       }
     });
-    // 3. Send the clean, geocoded data to Firebase
-    await addDoc(collection(db, 'pending_routes'), sanitizedRoute);
-    showToast('✅ Route submitted to Admin for review!');
+
+    // 2. ISOLATED OSRM FETCH (If this fails, it skips curves but SAVES the route anyway)
+    try {
+      const routeCoords = [];
+
+      // Grab start GPS
+      if (sanitizedRoute.lat && sanitizedRoute.lng) {
+        routeCoords.push(`${sanitizedRoute.lng},${sanitizedRoute.lat}`);
+      }
+
+      // Loop stops safely
+      if (sanitizedRoute.stops && Array.isArray(sanitizedRoute.stops)) {
+        sanitizedRoute.stops.forEach((stopName, index) => {
+          if (!stopName) return; // Prevent crash if user left a blank stop
+          if (index === 0 && sanitizedRoute.lat) return;
+
+          // Force to string to prevent regex crashes
+          const clean = String(stopName).toLowerCase().trim();
+          
+          let matchKey = Object.keys(COORDS).find(k => k.toLowerCase() === clean);
+          
+          if (!matchKey) {
+              matchKey = Object.keys(COORDS).find(k => k.toLowerCase().replace(/\([a-z]\)/g, '').trim() === clean.replace(/\([a-z]\)/g, '').trim());
+          }
+          if (!matchKey && clean.includes("thane")) {
+              matchKey = Object.keys(COORDS).find(k => k.toLowerCase().includes("thane"));
+          }
+
+          if (matchKey && COORDS[matchKey]) {
+            routeCoords.push(`${COORDS[matchKey].lng},${COORDS[matchKey].lat}`);
+          }
+        });
+      }
+
+      // Call mapping server
+      if (routeCoords.length > 1) {
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${routeCoords.join(';')}?overview=full&geometries=geojson`;
+        const res = await fetch(osrmUrl);
+        const data = await res.json();
+
+        // Convert format for Leaflet
+        if (data.routes && data.routes[0] && data.routes[0].geometry) {
+          sanitizedRoute.path = data.routes[0].geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
+        }
+      }
+    } catch (err) {
+      console.warn("Curve generation skipped due to error, but saving route anyway:", err);
+    }
+
+    // 3. GUARANTEED FIREBASE SAVE
+    try {
+      await addDoc(collection(db, 'pending_routes'), sanitizedRoute);
+      showToast('✅ Route submitted to Admin for review!', '#16a34a', '#fff');
+    } catch (fbErr) {
+      console.error("Firebase rejected the save:", fbErr);
+      alert("Database Error: " + fbErr.message); // This will physically pop up if Firebase is mad
+    }
   };
+
   const handleDelete = async (id) => {
     if (BASE_ROUTES.some((r) => r.id === id)) {
       await setDoc(doc(db, 'deleted_base_routes', id.toString()), {
@@ -432,6 +488,7 @@ export default function App() {
     }
     showToast('🗑️ Route removed globally.', '#dc2626', TXT);
   };
+
   const handleApprove = async (r) => {
     console.log("FULL ROUTE OBJECT RECEIVED:", r);
     
@@ -453,6 +510,7 @@ export default function App() {
       alert("Firestore Error: " + error.message);
     }
   };
+
   const handleReject = async (id) => {
     await deleteDoc(doc(db, 'pending_routes', id.toString()));
     showToast('❌ Request rejected.', '#dc2626', TXT);

@@ -542,44 +542,90 @@ function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
 
   const sel = routes.find((r) => r.id === selectedId);
 
-  // 1. GATHER ALL STOPS 24/7 (Even if they aren't in the COORDS dictionary)
-  const allMarkers = useMemo(() => {
-    const m = [];
-    routes.forEach((r) => {
-      (r.stops || []).forEach((stopName, idx) => {
-        // Prevent drawing duplicate markers for shared stops
-        if (!m.some((x) => x.name === stopName)) {
-          if (COORDS[stopName]) {
-            // Pull from hardcoded dictionary
-            m.push({ name: stopName, pos: [COORDS[stopName].lat, COORDS[stopName].lng] });
-          } else if (r.path && r.path[idx]) {
-              const p = r.path[idx];
-              const lat = Array.isArray(p) ? p[0] : p.lat;
-              const lng = Array.isArray(p) ? p[1] : p.lng;
-              if (lat && lng) m.push({ name: stopName, pos: [lat, lng] });
-          } 
-          // NEW: Check top-level coordinates
-          else if (r.lat && r.lng) {
-            // Only push a marker for the FIRST stop to avoid overwriting or 
-            // placing multiple stops at the same single location
-            if (idx === 0) {
-                m.push({ name: stopName, pos: [r.lat, r.lng] });
-            }
+ // 1. GATHER ALL STOPS 24/7 (Smart extraction from curvy paths)
+ const allMarkers = useMemo(() => {
+  const m = [];
+  
+  routes.forEach((r) => {
+    if (!r.stops || !Array.isArray(r.stops)) return;
+    
+    r.stops.forEach((stopName, idx) => {
+      // Prevent drawing duplicate markers for the exact same stop
+      if (m.some((x) => x.name === stopName)) return;
+
+      let pos = null;
+
+      // A. Try dictionary match first (safe fallback)
+      const cleanName = stopName.toLowerCase().trim();
+      const dictKey = Object.keys(COORDS || {}).find(k => k.toLowerCase() === cleanName);
+      if (dictKey && COORDS[dictKey]) {
+        pos = [COORDS[dictKey].lat, COORDS[dictKey].lng];
+      } 
+      // B. THE MAGIC: Rip the coordinates directly from the ends of the curvy path!
+      else if (r.path && r.path.length > 0) {
+        if (idx === 0) {
+          // First stop gets the absolute first coordinate of the line
+          const pt = r.path[0];
+          pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
+        } else if (idx === r.stops.length - 1) {
+          // Last stop gets the absolute final coordinate of the line
+          const pt = r.path[r.path.length - 1];
+          pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
         }
+      } 
+      // C. Last resort fallback to original GPS ping
+      else if (idx === 0 && r.lat && r.lng) {
+        pos = [r.lat, r.lng];
       }
-      });
+
+      // If we successfully found a true coordinate, drop the 24/7 marker!
+      if (pos && pos[0] && pos[1]) {
+        m.push({ name: stopName, pos });
+      }
     });
-    return m;
-  }, [routes]);
+  });
+  
+  return m;
+}, [routes]);
 
   // Coordinates for the selected route line
   const selCoords = useMemo(() => {
     if (!sel) return null;
-    if (sel.path && sel.path.length > 0) return sel.path;
-    // NEW: Fallback to top-level lat/lng if no path
+    if (sel.path && sel.path.length > 1) return sel.path;
+
+    const getCoord = (stopName) => {
+        if (!stopName) return null;
+        const original = stopName.trim();
+        if (COORDS[original]) return COORDS[original];
+        
+        let key = Object.keys(COORDS).find(k => k.toLowerCase() === original.toLowerCase());
+        
+        if (!key) {
+            const clean = original.toLowerCase().replace(/\([a-z]\)/g, '').trim();
+            key = Object.keys(COORDS).find(k => k.toLowerCase().replace(/\([a-z]\)/g, '').trim() === clean);
+        }
+        
+        if (!key && original.toLowerCase().includes("thane")) {
+            key = Object.keys(COORDS).find(k => k.toLowerCase() === "thane");
+        }
+        return key ? COORDS[key] : null;
+    };
+
+    // 🌟 LOOP FIX: Map through ALL stops so it connects every dot to the end!
+    const mappedPoints = (sel.stops || []).map((stopName, index) => {
+        // Stop 1: Lock onto your exact GPS coordinate
+        if (index === 0 && sel.lat && sel.lng) return [sel.lat, sel.lng];
+        
+        // All other stops (including the final destination): Find in dictionary
+        const c = getCoord(stopName);
+        return c ? [c.lat, c.lng] : null;
+    }).filter(Boolean); // Clean out any stops it couldn't find
+
+    // Draw the full multi-stop line!
+    if (mappedPoints.length > 1) return mappedPoints;
+    
     if (sel.lat && sel.lng) return [[sel.lat, sel.lng]];
-    // Fallback to COORDS dictionary
-    return (sel.stops || []).map(s => COORDS[s]).filter(Boolean).map(c => [c.lat, c.lng]);
+    return null;
 }, [sel]);
   return (
     <div style={{ height: 400, width: '100%', borderRadius: 16, overflow: 'hidden', border: `2px solid ${BORDER}` }}>
@@ -612,24 +658,51 @@ function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
         )}
 
         {/* 4. DRAW ALL MARKERS 24/7 */}
-        {allMarkers.map((m, i) => {
-          const isSelected = (sel?.stops || []).includes(m.name);
-          return (
-            <CircleMarker
-              key={`all-${i}`}
-              center={m.pos}
-              radius={isSelected ? 6 : 4.5} // Slightly bigger if selected
-              pathOptions={{
-                color: '#000',     // Solid Black Border
-                weight: isSelected ? 3 : 2, 
-                fillColor: '#fff', // Solid White Inside
-                fillOpacity: 1,
-              }}
-            >
-              <Popup>{m.name}</Popup>
-            </CircleMarker>
-          );
-        })}
+    {allMarkers.map((m, i) => {
+      const isSelected = (sel?.stops || []).includes(m.name);
+      
+      // HIDE the inaccurate dictionary marker if this route is active!
+      if (isSelected) return null;
+
+      return (
+        <CircleMarker
+          key={`all-${i}`}
+          center={m.pos}
+          radius={4.5}
+          pathOptions={{
+            color: '#000',
+            weight: 2,
+            fillColor: '#fff',
+            fillOpacity: 1,
+          }}
+        >
+          <Popup>{m.name}</Popup>
+        </CircleMarker>
+      );
+    })}
+
+    {/* 4.5 DRAW PERFECT START & END PINS DIRECTLY FROM THE GREEN LINE */}
+    {selCoords && selCoords.length > 1 && (
+      <>
+        {/* Exact Start of the line */}
+        <CircleMarker
+          center={selCoords[0]}
+          radius={6}
+          pathOptions={{ color: '#000', weight: 3, fillColor: '#fff', fillOpacity: 1 }}
+        >
+          <Popup>{sel?.stops?.[0] || 'Start'}</Popup>
+        </CircleMarker>
+
+        {/* Exact End of the line */}
+        <CircleMarker
+          center={selCoords[selCoords.length - 1]}
+          radius={6}
+          pathOptions={{ color: '#000', weight: 3, fillColor: '#fff', fillOpacity: 1 }}
+        >
+          <Popup>{sel?.stops?.[sel?.stops?.length - 1] || 'End'}</Popup>
+        </CircleMarker>
+      </>
+    )}
 
         {/* 5. USER LOCATION */}
         {userLoc && (
