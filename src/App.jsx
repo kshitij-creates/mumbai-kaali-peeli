@@ -1,45 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { db } from "./firebase/config";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import taxiLogo from './assets/taxi.svg';
-import taxiIcon from './assets/taxi.svg';
 import autoIcon from './assets/auto.svg';
-
-// ── ⚠️ FIREBASE SETUP ────────────────────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: "AIzaSyAuca_BbRV27xRnxmPJKJviaSQGj3lfnGo",
-  authDomain: "mumbai-kaali-peeli.firebaseapp.com",
-  projectId: "mumbai-kaali-peeli",
-  storageBucket: "mumbai-kaali-peeli.firebasestorage.app",
-  messagingSenderId: "115301776166",
-  appId: "1:115301776166:web:bd0087822b76e831351fe7",
-  measurementId: "G-XRKK35KYGZ"
-};
-
-// 1. Initialize Firebase App (only if it hasn't been initialized already)
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-// 2. Initialize Firestore Database (Standard connection)
-const db = getFirestore(app, 'default');
-
-// ── THE GEOCODING BRAIN 🧠 ───────────────────────────────────────────────────
-const fetchCoordinates = async (placeName) => {
-  const query = `${placeName}, Maharashtra, India`;
-  const viewbox = "72.75,20.15,73.90,18.90"; // Prioritize Mumbai/Thane/Kalyan
-  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&viewbox=${viewbox}&bounded=0`;
-  
-  try {
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-    return null;
-  } catch (err) {
-    console.error("Failed to find location:", err);
-    return null;
-  }
-};
+import ReactDOM from 'react-dom';
+import Toast from "./components/shared/toast";
+import SuggestEditModal from "./components/modals/SuggestEditModal";
+import RouteCard from './components/customer/RouteCard';
+import CustomerView from './components/customer/CustomerView';
+import AdminDashboard from "./components/admin/AdminDashboard";
 // ── DATA & COLORS ────────────────────────────────────────────────────────────
 const COORDS = {
   Dahisar: { lat: 19.2527, lng: 72.8581 },
@@ -127,7 +97,7 @@ const Y = '#FFD700',
   const META = {
     share_taxi: { 
       l: 'Share Taxi', 
-      icon: taxiIcon, // No quotes! Using the imported variable
+      icon: "/taxi.svg",
       color: Y, 
       bg: '#2A2400' 
     },
@@ -149,49 +119,7 @@ const inp = {
   boxSizing: 'border-box',
 };
 
-// ── UTILS & MINOR COMPONENTS ──────────────────────────────────────────────────
-const Stripe = () => (
-  <div
-    style={{ height: 12, display: 'flex', width: '100%', overflow: 'hidden' }}
-  >
-    {Array.from({ length: 40 }).map((_, i) => (
-      <div
-        key={i}
-        style={{
-          flex: 1,
-          background: i % 2 === 0 ? Y : BK,
-          transform: 'skew(-45deg)',
-          marginLeft: -5,
-          width: 20,
-        }}
-      />
-    ))}
-  </div>
-);
-const TypeBadge = ({ type }) => (
-  <div
-    style={{
-      background: META[type].bg,
-      color: META[type].color,
-      border: `1px solid ${META[type].color}55`,
-      fontSize: 10,
-      fontWeight: 800,
-      padding: '4px 8px',
-      borderRadius: 20,
-      whiteSpace: 'nowrap',
-      display: 'flex', 
-      alignItems: 'center',
-      gap: '6px' 
-    }}
-  >
-    <img 
-      src={META[type].icon} 
-      alt={META[type].l} 
-      style={{ width: '16px', height: '16px' }} 
-    />
-    {META[type].l}
-  </div>
-);
+
 
 // ── Admin Login Modal ────────────────────────────────────────────────────────
 function AdminLoginModal({ onSuccess, onCancel }) {
@@ -270,478 +198,6 @@ function AdminLoginModal({ onSuccess, onCancel }) {
     </div>
   );
 }
-
-// ── V2: Dynamic Add Route Form ────────────────────────────────────────────────
-function AddRouteForm({ onSubmit, onClose }) {
-  const [stopsList, setStopsList] = useState([]);
-  const [currentStop, setCurrentStop] = useState('');
-  const [otherInfo, setOtherInfo] = useState({
-    type: 'share_taxi',
-    fare: '',
-    freq: '',
-    hours: '',
-    landmarks: '',
-  });
-  const [isSearching, setIsSearching] = useState(false);
-
-  const addStop = () => {
-    if (currentStop.trim()) {
-      setStopsList([...stopsList, currentStop.trim()]);
-      setCurrentStop('');
-    }
-  };
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (stopsList.length < 2) return alert('Please add at least 2 stops!');
-
-    setIsSearching(true);
-    const stopCoords = [];
-    for (const name of stopsList) {
-      const coords = await fetchCoordinates(name);
-      if (coords) stopCoords.push([coords.lat, coords.lng]);
-    }
-
-    const routeName = `${stopsList[0]} → ${stopsList[stopsList.length - 1]}`;
-
-    onSubmit({
-      ...otherInfo,
-      name: routeName,
-      stops: stopsList,
-      path: stopCoords.length > 1 ? stopCoords : null,
-    });
-    setIsSearching(false);
-    onClose();
-  };
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-    >
-      <div className="cyber-modal" style={{ width: '100%', maxWidth: 400 }}>
-        <h2 style={{ margin: '0 0 16px', color: '#FFD700' }}>Add New Route</h2>
-        <form
-          onSubmit={submit}
-          style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-        >
-          <select
-            value={otherInfo.type}
-            onChange={(e) => setOtherInfo({ ...otherInfo, type: e.target.value })}
-            className="cyber-input"
-          >
-            <option value="share_taxi">🚕 Share Taxi</option>
-            <option value="auto">🛺 Auto</option>
-          </select>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              placeholder="Add stop (e.g. Bandra)"
-              value={currentStop}
-              onChange={(e) => setCurrentStop(e.target.value)}
-              className="cyber-input"
-            />
-            <button
-              type="button"
-              onClick={addStop}
-              className="tactile-btn"
-              style={{
-                background: '#FFD700',
-                border: 'none',
-                borderRadius: 8,
-                padding: '0 15px',
-                fontWeight: 900,
-              }}
-            >
-              +
-            </button>
-          </div>
-          
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {stopsList.map((s, i) => (
-              <span key={i} style={{ background: '#333', padding: '4px 10px', borderRadius: 12, fontSize: 12, color: '#fff' }}>
-                {s}
-              </span>
-            ))}
-          </div>
-
-          <input required placeholder="Fare (e.g. ₹15-20)" value={otherInfo.fare} onChange={(e) => setOtherInfo({ ...otherInfo, fare: e.target.value })} className="cyber-input" />
-          <input required placeholder="Frequency (e.g. Every 5 mins)" value={otherInfo.freq} onChange={(e) => setOtherInfo({ ...otherInfo, freq: e.target.value })} className="cyber-input" />
-          <input required placeholder="Hours (e.g. 6 AM - 11 PM)" value={otherInfo.hours} onChange={(e) => setOtherInfo({ ...otherInfo, hours: e.target.value })} className="cyber-input" />
-{/* --- NEW LANDMARKS INPUT --- */}
-<input 
-            placeholder="Nearby Landmarks (Optional)" 
-            value={otherInfo.landmarks} 
-            onChange={(e) => setOtherInfo({ ...otherInfo, landmarks: e.target.value })} 
-            className="cyber-input" 
-          />
-          <button
-            type="submit"
-            disabled={isSearching}
-            className="tactile-btn"
-            style={{
-              marginTop: 10,
-              background: isSearching ? '#888' : '#FFD700',
-              padding: 12,
-              borderRadius: 8,
-              fontWeight: 700,
-              border: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            {isSearching ? (
-              <>
-                <span className="pulse-dot"></span> Mapping...
-              </>
-            ) : 'Create Route'}
-          </button>
-          <button type="button" onClick={onClose} className="tactile-btn" style={{ background: '#333', color: '#fff', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer' }}>
-            Cancel
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ── RouteCard ──────────────────────────────────────────────────────────────────
-function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, onNavigate }) {
-  const [confirmDel, setConfirmDel] = useState(false);
-  const m = META[route.type];
-  
-  const distLabel =
-    distance != null
-      ? distance < 0.1
-        ? '< 100m'
-        : distance < 1
-        ? `${Math.round(distance * 1000)}m`
-        : `${distance.toFixed(1)} km`
-      : null;
-
-  return (
-    <div
-      className="route-card" /* This triggers the neon hover effect from App.css */
-      style={{
-        position: 'relative',
-        background: selected ? m.bg : CARD,
-        border: `2px solid ${selected ? m.color : BORDER}`,
-        borderRadius: 14,
-        padding: '12px 14px',
-        marginBottom: 8,
-        cursor: 'pointer',
-
-      }}
-      onClick={() => !confirmDel && onSelect()}
-    >
-      {/* Hidden Delete Overlay */}
-      {confirmDel && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'rgba(160,0,0,0.97)',
-            borderRadius: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px',
-            zIndex: 10,
-          }}
-        >
-          <div style={{ color: TXT, fontWeight: 800 }}>Delete this route?</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(route.id);
-              }}
-              style={{
-                padding: '6px 16px',
-                background: TXT,
-                color: '#dc2626',
-                border: 'none',
-                borderRadius: 6,
-                fontWeight: 800,
-                cursor: 'pointer'
-              }}
-            >
-              Delete
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setConfirmDel(false);
-              }}
-              style={{
-                padding: '6px 16px',
-                background: 'rgba(255,255,255,0.2)',
-                color: TXT,
-                border: 'none',
-                borderRadius: 6,
-                cursor: 'pointer'
-              }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Top Row: Route Name & Badge */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-        }}
-      >
-        <div
-          style={{
-            fontWeight: 700,
-            fontSize: 14,
-            color: TXT,
-            paddingRight: adminMode ? 32 : 0,
-          }}
-        >
-          {route.name}
-        </div>
-        <TypeBadge type={route.type} />
-      </div>
-
-      {/* Admin Trash Icon */}
-      {adminMode && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setConfirmDel(true);
-          }}
-          style={{
-            position: 'absolute',
-            top: 12,
-            right: 12,
-            background: 'transparent',
-            border: 'none',
-            color: '#555',
-            cursor: 'pointer',
-            fontSize: 16,
-          }}
-        >
-          🗑️
-        </button>
-      )}
-
-      {/* Bottom Row: Fare, Frequency, Distance */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 12,
-          marginTop: 7,
-          fontSize: 12,
-          color: MUTED,
-        }}
-      >
-      <span style={{ 
-  fontFamily: '"Share Tech Mono", monospace', 
-  color: '#ff3333', /* Auto meter red */
-  textShadow: '0px 0px 8px rgba(255, 51, 51, 0.8)', /* The LED glow effect */
-  fontSize: '15px',
-  letterSpacing: '1px',
-  background: '#111',
-  padding: '2px 6px',
-  borderRadius: '4px',
-  border: '1px solid #333'
-}}>
-  ₹ {route.fare.replace('₹', '').trim()}
-</span>
-        <span>🔄 {route.freq}</span>
-        {distLabel && (
-          <span style={{ color: Y, fontWeight: 700 }}>📍 {distLabel} away</span>
-        )}
-      </div>
-
-     {/* Expanded Stops View (When Clicked) */}
-     {selected && (
-        <div
-          style={{
-            marginTop: 12,
-            paddingTop: 12,
-            borderTop: `1px solid ${m.color}33`,
-          }}
-        >
-          {/* --- NEW LANDMARK DISPLAY --- */}
-          {route.landmarks && (
-            <div style={{ fontSize: 12, color: Y, marginBottom: 10, fontWeight: 700, display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-              <span>🏛️</span>
-              <span style={{ color: '#ddd', fontWeight: 500, lineHeight: 1.4 }}>
-                <span style={{ color: Y, fontWeight: 700 }}>Landmarks: </span> 
-                {route.landmarks}
-              </span>
-            </div>
-          )}
-
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 5,
-              marginBottom: 8,
-            }}
-          >
-           {route.stops.map((s, i) => {
-            // --- NEW: Check dynamic Firebase path first, then fallback to COORDS dictionary ---
-            let lat, lng;
-            if (route.path && route.path[i]) {
-              lat = Array.isArray(route.path[i]) ? route.path[i][0] : route.path[i].lat;
-              lng = Array.isArray(route.path[i]) ? route.path[i][1] : route.path[i].lng;
-            } else if (COORDS[s]) {
-              lat = COORDS[s].lat;
-              lng = COORDS[s].lng;
-            }
-            
-            const hasCoords = lat !== undefined && lng !== undefined;
-
-            return (
-              <span
-                key={i}
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevents closing the route card
-                  if (hasCoords && onNavigate) onNavigate(s, lat, lng);
-                }}
-                style={{
-                  background: '#252525',
-                  color: '#ddd',
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  borderRadius: 10,
-                  cursor: hasCoords ? 'pointer' : 'default',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  border: '1px solid #444' // Gives it a button feel
-                }}
-              >
-                {s} {hasCoords && <span title="Get walking directions">🚶</span>}
-              </span>
-            );
-          })}
-          </div>
-          <div style={{ fontSize: 12, color: '#aaa' }}>{route.hours}</div>
-        </div>
-      )}
-    </div>
-  );
-}
-// ── V2: Dynamic MapView ────────────────────────────────────────────────────────
-function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
-  const sel = routes.find((r) => r.id === selectedId);
-
-  // V2 Update: Check if route has dynamic API 'path' data first, otherwise fall back to COORDS dictionary
-  const lineCoords = useMemo(() => {
-    if (!sel) return [];
-    if (sel.path && sel.path.length > 0) return sel.path;
-    return sel.stops
-      .map((s) => COORDS[s])
-      .filter(Boolean)
-      .map((c) => [c.lat, c.lng]);
-  }, [sel]);
-
-  const allMarkers = useMemo(() => {
-    const m = [];
-    routes.forEach((r) => {
-      if (r.path && r.path.length === r.stops.length) {
-        r.stops.forEach((s, i) => m.push({ name: s, pos: r.path[i] }));
-      } else {
-        r.stops.forEach((s) => {
-          if (COORDS[s] && !m.some((x) => x.name === s))
-            m.push({ name: s, pos: [COORDS[s].lat, COORDS[s].lng] });
-        });
-      }
-    });
-    return m;
-  }, [routes]);
-
-  return (
-    <div
-      style={{
-        height: 400,
-        width: '100%',
-        borderRadius: 16,
-        overflow: 'hidden',
-        border: `2px solid ${BORDER}`,
-      }}
-    >
-      <MapContainer
-        center={[19.1136, 72.8697]}
-        zoom={11}
-        style={{ height: '100%', width: '100%' }}
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="&copy; OpenStreetMap"
-        />
-        {userLoc && (
-          <CircleMarker
-            center={[userLoc.lat, userLoc.lng]}
-            radius={8}
-            pathOptions={{
-              color: '#fff',
-              fillColor: '#3b82f6',
-              fillOpacity: 1,
-            }}
-          >
-            <Popup>You are here</Popup>
-          </CircleMarker>
-        )}
-        {sel && lineCoords.length > 1 && (
-          <Polyline
-            positions={lineCoords}
-            pathOptions={{ color: META[sel.type].color, weight: 4 }}
-          />
-        )}
-        {/* --- NEW: The Walking Path --- */}
-        {walkingRoute && (
-          <Polyline
-            positions={walkingRoute}
-            pathOptions={{ 
-              color: '#3b82f6', // Bright Blue for walking
-              weight: 4, 
-              dashArray: '10, 10', // Makes it a dotted line!
-              opacity: 0.8
-            }}
-          />
-        )}
-        {allMarkers.map((m, i) => (
-          <CircleMarker
-            key={i}
-            center={m.pos}
-            radius={5}
-            pathOptions={{
-              color: '#000',
-              fillColor: sel?.stops.includes(m.name)
-                ? META[sel.type].color
-                : '#fff',
-              fillOpacity: 1,
-            }}
-          >
-            <Popup>{m.name}</Popup>
-          </CircleMarker>
-        ))}
-      </MapContainer>
-    </div>
-  );
-}
-
 // ── Admin View ─────────────────────────────────────────────────────────────────
 function AdminView({ pending, handleApprove, onReject, switchToCustomer }) {
   console.log("AdminView props received:", { handleApprove });
@@ -854,587 +310,63 @@ function AdminView({ pending, handleApprove, onReject, switchToCustomer }) {
   );
 }
 
-// ── Customer View ──────────────────────────────────────────────────────────────
-function CustomerView({
-  allRoutes,
-  pendingCount,
-  onAddRoute,
-  onDeleteRoute,
-  onAdminClick,
-  adminMode,
-  setAdminMode, // <-- Added this!
-  showToast, // <-- Add it right here!
-}) {
-  const [adminAttempt, setAdminAttempt] = useState(0); // <-- Safely inside the component!
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all');
-  const [selectedId, setSelectedId] = useState(null);
-  const [tab, setTab] = useState('list');
-  const [showForm, setShowForm] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [nearMe, setNearMe] = useState(null);
-  
-  // NEW: Added states for robust error handling and loading indicators
-  const [isLocating, setIsLocating] = useState(false);
-  const [locationError, setLocationError] = useState('');
-  const [walkingRoute, setWalkingRoute] = useState(null);
-
-  // NEW: Upgraded click handler that manages the loading state and catches errors gracefully
-  const handleNearMeClick = () => {
-    if (nearMe) {
-      setNearMe(null);
-      setLocationError('');
-      return;
-    }
-
-    setIsLocating(true);
-    setLocationError('');
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setNearMe({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setIsLocating(false);
-      },
-      (err) => {
-        console.error("Location error:", err);
-        setLocationError("Could not get your location.");
-        setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
-  };
-
-  // --- NEW: Fetch walking route from OSRM ---
-  const handleNavigateToStop = async (stopName, lat, lng) => {
-    if (!nearMe) {
-      alert("Please click '📍 Near Me' first so we know your starting point!");
-      return;
-    }
-    
-    showToast(`Calculating walking route to ${stopName}...`, '#FFD700', '#000');
-    
-    try {
-      // OSRM requires Longitude,Latitude order!
-      const url = `https://router.project-osrm.org/route/v1/foot/${nearMe.lng},${nearMe.lat};${lng},${lat}?overview=full&geometries=geojson`;
-      const res = await fetch(url);
-      const data = await res.json();
-      
-      if (data.routes && data.routes[0]) {
-        // Leaflet expects [Lat, Lng] order, so we flip them back
-        const path = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-        setWalkingRoute(path);
-        setTab('map'); // Instantly flip them to the map to see the line!
-      }
-    } catch (err) {
-      console.error("Routing error:", err);
-      alert("Could not calculate route. Try again.");
-    }
-  };
-
-  const filtered = useMemo(() => {
-    // 1. Filter by search text and taxi/auto type first
-    let results = allRoutes.filter((r) => {
-      if (filter !== 'all' && r.type !== filter) return false;
-      return (
-        !search ||
-        r.name.toLowerCase().includes(search.toLowerCase()) ||
-        r.stops.some((s) => s.toLowerCase().includes(search.toLowerCase()))
-      );
-    });
-
-    // 2. Distance Calculation for BOTH Base and Community Routes
-    if (nearMe) {
-      results = results.map(r => {
-        let minDistance = Infinity;
-        
-        // Helper function to do the Haversine math
-        const calcDist = (lat, lng) => {
-          const R = 6371; // Earth's radius in km
-          const dLat = (lat - nearMe.lat) * (Math.PI / 180);
-          const dLon = (lng - nearMe.lng) * (Math.PI / 180);
-          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
-                    Math.cos(nearMe.lat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-          const dist = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-          if (dist < minDistance) minDistance = dist;
-        };
-
-        // A. Check dynamic GPS data (Community Routes from Firebase)
-        if (r.path && r.path.length > 0) {
-          r.path.forEach(p => {
-            const lat = Array.isArray(p) ? p[0] : p.lat;
-            const lng = Array.isArray(p) ? p[1] : p.lng;
-            if (lat && lng) calcDist(lat, lng);
-          });
-        }
-
-        // B. Check hardcoded dictionary (Base Routes)
-        r.stops.forEach(stopName => {
-          const coords = COORDS[stopName];
-          if (coords) calcDist(coords.lat, coords.lng);
-        });
-        
-        return { ...r, distance: minDistance };
-      }).sort((a, b) => a.distance - b.distance); 
-    }
-
-    return results;
-  }, [allRoutes, search, filter, nearMe]);
-
-  return (
-    <div>
-    <style>{`
-        @keyframes slideUpFade {
-          from {
-            opacity: 0;
-            transform: translateY(24px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        /* --- NEW MORPH ANIMATION --- */
-        @keyframes morphFade {
-          0% { 
-            opacity: 0; 
-            transform: scale(0.97); 
-          }
-          100% { 
-            opacity: 1; 
-            transform: scale(1); 
-          }
-        }
-        /* --- BULLETPROOF HAPTIC CARDS --- */
-        .route-card {
-          transition: all 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
-        }
-        .route-card:active {
-          transform: scale(0.96) !important;
-          box-shadow: 0px 2px 4px rgba(0,0,0,0.9) !important;
-          border-color: rgba(255, 215, 0, 0.5) !important;
-        }
-        /* --- SHIMEJI VEHICLE TRACK --- */
-    .shimeji {
-      position: absolute;
-      width: 24px;
-      height: 14px;
-      margin-top: -14px; /* Lifts the car so wheels sit perfectly on the line */
-      margin-left: -12px;
-      z-index: 10;
-      pointer-events: none;
-      transform-origin: 50% 100%; /* Forces the car to pivot on its back wheels during turns */
-      animation: perimeterDrive 12s linear infinite;
-    }
-    
-        @keyframes perimeterDrive {
-          0% { left: 0%; top: 0%; transform: rotate(0deg); }
-          45% { left: 100%; top: 0%; transform: rotate(0deg); }
-          46% { left: 100%; top: 0%; transform: rotate(90deg); } 
-          49% { left: 100%; top: 100%; transform: rotate(90deg); }
-          50% { left: 100%; top: 100%; transform: rotate(180deg); } 
-          95% { left: 0%; top: 100%; transform: rotate(180deg); }
-          96% { left: 0%; top: 100%; transform: rotate(270deg); } 
-          99% { left: 0%; top: 0%; transform: rotate(270deg); }
-          100% { left: 0%; top: 0%; transform: rotate(360deg); } 
-        }
-      `}</style>
-      <div style={{ background: BK, borderBottom: '1px solid #2a2a2a' }}>
-        <Stripe />
-        <div
-          style={{
-            padding: '14px 16px',
-            maxWidth: 960,
-            margin: '0 auto',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {/* Hamburger Icon */}
-            <button 
-              onClick={() => setIsDrawerOpen(true)}
-              style={{ background: 'transparent', border: 'none', color: '#FFF', padding: '4px', cursor: 'pointer', display: 'flex' }}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                <line x1="3" y1="12" x2="21" y2="12"></line>
-                <line x1="3" y1="6" x2="21" y2="6"></line>
-                <line x1="3" y1="18" x2="21" y2="18"></line>
-              </svg>
-            </button>
-            
-            {/* --- WRAPPED LOGO WITH SECRET HANDSHAKE & DASHBOARD SHORTCUT --- */}
-            <div onClick={() => {
-              if (adminMode) {
-                onAdminClick();
-                return;
-              }
-              const newCount = adminAttempt + 1;
-              setAdminAttempt(newCount);
-              if (newCount === 5) {
-                const password = prompt("Enter Admin Password:");
-                if (password === "KSHITIJ123") {
-                  setAdminMode(true);
-                  alert("Admin Mode Activated! Tap the logo one more time to open the Dashboard.");
-                }
-                setAdminAttempt(0);
-              }
-            }} style={{ cursor: 'pointer' }}>
-              <h1 style={{ margin: 0, color: Y, fontSize: 24, fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <img src={taxiLogo} alt="logo" style={{ width: '32px', height: '32px' }} />
-                Fare Per Share
-              </h1>
-            </div>
-          </div>
-        </div>
-        
-        <div style={{ padding: '0 16px 14px', maxWidth: 960, margin: '0 auto' }}>
-         {/* --- SHIMEJI SEARCH BAR WRAPPER --- */}
-    <div style={{ position: 'relative', width: '100%', borderRadius: '8px' }}>
-      
-      {/* The Kaali-Peeli Taxi */}
-      <div className="shimeji" style={{ animationDelay: '0s' }}>
-        <svg width="24" height="14" viewBox="0 0 24 14">
-          <path d="M2 10 L2 5 L6 2 L16 2 L20 5 L22 10 Z" fill="#FFD700" stroke="#000" strokeWidth="1"/>
-          <path d="M6 2 L16 2 L18 5 L4 5 Z" fill="#111"/>
-          <circle cx="5" cy="12" r="2" fill="#333"/><circle cx="17" cy="12" r="2" fill="#333"/>
-          <circle cx="14" cy="4" r="1.5" fill="#fff"/>
-        </svg>
-      </div>
-
-      {/* The Auto Rickshaw */}
-      <div className="shimeji" style={{ animationDelay: '-6s' }}>
-        <svg width="22" height="14" viewBox="0 0 22 14">
-          <path d="M3 10 L3 2 L14 2 L18 6 L19 10 Z" fill="#111" stroke="#FFD700" strokeWidth="1"/>
-          <path d="M5 2 L12 2 L12 6 L4 6 Z" fill="none" stroke="#FFD700"/>
-          <circle cx="6" cy="12" r="1.5" fill="#333"/><circle cx="16" cy="12" r="1.5" fill="#333"/>
-          <circle cx="9" cy="4.5" r="1.5" fill="#fff"/>
-        </svg>
-      </div>
-
-      {/* Your Original Search Bar */}
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search stops (e.g. Andheri, Bandra...)"
-        style={{ ...inp, position: 'relative', zIndex: 5 }} 
-      />
-    </div>
-        </div>
-        <Stripe />
-      </div>
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: 12 }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {['all', 'share_taxi', 'auto'].map((v) => (
-            <button
-              key={v}
-              onClick={() => setFilter(v)}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 12,
-                background: filter === v ? Y : CARD,
-                color: filter === v ? BK : MUTED,
-                border: 'none',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              {v === 'all' ? 'All' : v === 'auto' ? 'Auto' : 'Taxi'}
-            </button>
-          ))}
-          
-          {/* NEW: Updated button layout with the loading ternary and error message nested safely */}
-          <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <button
-  onClick={handleNearMeClick}
-  disabled={isLocating}
-  className={`tactile-btn ${!isLocating ? 'near-me-glow' : ''}`}
-  style={{
-    background: isLocating ? '#0f172a' : (nearMe ? '#0f172a' : CARD),
-    color: nearMe ? '#60a5fa' : MUTED,
-    padding: '6px 12px',
-    borderRadius: 12,
-    border: isLocating ? '1px solid rgba(0, 255, 65, 0.6)' : 'none', // Matching green border
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: '100px',
-    minHeight: '36px',
-    transition: 'all 0.3s ease'
-  }}
->
-  <style>{`
-    @keyframes svg-radar-spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-  `}</style>
-
-  {isLocating ? (
-    <svg
-      width="22"
-      height="22"
-      viewBox="0 0 24 24"
-      style={{ animation: 'svg-radar-spin 1.2s linear infinite' }}
-    >
-      {/* Outer grid ring - Faded Green */}
-      <circle cx="12" cy="12" r="10" stroke="rgba(0, 255, 65, 0.3)" strokeWidth="2" fill="none" />
-      {/* The sweeping radar wedge - Bright Green */}
-      <path d="M12 12 L12 2 A10 10 0 0 1 22 12 Z" fill="rgba(0, 255, 65, 0.9)" />
-      {/* Center blip */}
-      <circle cx="12" cy="12" r="2" fill="#111" />
-    </svg>
-  ) : (
-    <span>📍 Near Me</span>
-  )}
-</button>
-            {locationError && <div style={{ color: 'red', fontSize: '11px', marginTop: '2px', position: 'absolute', transform: 'translateY(32px)' }}>{locationError}</div>}
-          </div>
-          
-          
-        </div>
-        {/* --- VIEW MORPH WRAPPER --- */}
-<div 
-  key={tab} 
-  style={{
-    animation: 'morphFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-    opacity: 0
-  }}
-></div>
-        {tab === 'list' ? (
-         filtered.map((r, index) => (
-          <div 
-            key={r.id} 
-            style={{
-              opacity: 0,
-              animation: 'slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-              animationDelay: `${index * 60}ms`
-            }}
-          >
-            <RouteCard
-              route={r}
-              selected={selectedId === r.id}
-              onSelect={() => setSelectedId((p) => (p === r.id ? null : r.id))}
-              onDelete={onDeleteRoute}
-              adminMode={adminMode}
-              distance={r.distance}
-              onNavigate={handleNavigateToStop} // <-- Add this!
-            />
-          </div>
-        ))
-        ) : (
-          <div style={{ display: 'grid', gap: 12 }}>
-            <MapView
-              routes={filtered}
-              selectedId={selectedId}
-              onSelect={(id) => setSelectedId((p) => (p === id ? null : id))}
-              userLoc={nearMe}
-              walkingRoute={walkingRoute} // <-- Add this right here!
-            />
-            <div style={{ marginTop: 8 }}>
-              {filtered.map((r) => (
-                <RouteCard
-                  key={r.id}
-                  route={r}
-                  selected={selectedId === r.id}
-                  onSelect={() =>
-                    setSelectedId((p) => (p === r.id ? null : r.id))
-                  }
-                  onDelete={onDeleteRoute}
-                  adminMode={adminMode}
-                  distance={r.distance}
-                  onNavigate={handleNavigateToStop} // <-- Add this!
-                />
-              ))}
-            </div>
-          </div>
-        )}
-        </div> {/* --- CLOSING VIEW MORPH WRAPPER --- */}
-   {/* --- FLOATING THUMB-SIZED BOTTOM NAV --- */}
-<div style={{
-  position: 'fixed',
-  bottom: '16px', /* Just slightly off the absolute bottom for natural thumb resting */
-  left: 0,
-  width: '100%',
-  display: 'flex',
-  justifyContent: 'center', /* Centers the buttons instead of stretching them */
-  gap: '12px',
-  zIndex: 900,
-  pointerEvents: 'none' /* Lets users click *through* the empty space around the buttons */
-}}>
-  
-  <button 
-    onClick={() => setTab('list')}
-    style={{
-      pointerEvents: 'auto', /* Re-enables clicking on the button itself */
-      padding: '10px 24px', /* Compact thumb-sized touch target */
-      borderRadius: '30px', /* Sleek pill shape */
-      background: tab === 'list' ? 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)' : '#1a1a1a',
-      color: tab === 'list' ? '#000' : '#888',
-      fontWeight: 900,
-      fontSize: '13px', 
-      border: tab === 'list' ? '1px solid rgba(255,255,255,0.6)' : '1px solid #333',
-      textShadow: tab === 'list' ? '0px 1px 1px rgba(255, 255, 255, 0.8)' : 'none', 
-      boxShadow: tab === 'list' ? 'inset 0px 2px 4px rgba(255,255,255,0.5), 0px 6px 16px rgba(255, 215, 0, 0.3)' : '0px 6px 16px rgba(0,0,0,0.8)', 
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: '6px',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease'
-    }}
-  >
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line>
-    </svg>
-    List
-  </button>
-  
-  <button 
-    onClick={() => setTab('map')}
-    style={{
-      pointerEvents: 'auto',
-      padding: '10px 24px',
-      borderRadius: '30px',
-      background: tab === 'map' ? 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)' : '#1a1a1a',
-      color: tab === 'map' ? '#000' : '#888',
-      fontWeight: 900,
-      fontSize: '13px',
-      border: tab === 'map' ? '1px solid rgba(255,255,255,0.6)' : '1px solid #333',
-      textShadow: tab === 'map' ? '0px 1px 1px rgba(255, 255, 255, 0.8)' : 'none',
-      boxShadow: tab === 'map' ? 'inset 0px 2px 4px rgba(255,255,255,0.5), 0px 6px 16px rgba(255, 215, 0, 0.3)' : '0px 6px 16px rgba(0,0,0,0.8)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: '6px',
-      cursor: 'pointer',
-      transition: 'all 0.2s ease'
-    }}
-  >
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-      <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line>
-    </svg>
-    Map
-  </button>
-</div>
-
-{/* Invisible Spacer so the last card doesn't hide behind the floating nav */}
-<div style={{ height: '100px', width: '100%' }}></div>
-     {/* --- THE SIDE DRAWER (SLEDGEHAMMER VERSION) --- */}
-{isDrawerOpen && (
-  <>
-    {/* Force animations directly into the DOM */}
-    <style>{`
-      @keyframes slideInLeft {
-        from { transform: translateX(-100%); }
-        to { transform: translateX(0); }
-      }
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-    `}</style>
-
-    {/* Background Overlay (Click to close) */}
-    <div 
-      onClick={() => setIsDrawerOpen(false)}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(4px)',
-        zIndex: 999,
-        animation: 'fadeIn 0.2s ease-out forwards'
-      }}
-    />
-    
-    {/* Sliding Panel */}
-    <div 
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        height: '100%',
-        width: '280px',
-        background: '#0a0a0a',
-        borderRight: '1px solid #222',
-        boxShadow: '4px 0 24px rgba(0,0,0,0.8)',
-        zIndex: 1000,
-        animation: 'slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '24px 20px',
-        boxSizing: 'border-box'
-      }}
-    >
-      
-      {/* Drawer Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-        <h2 style={{ margin: 0, color: '#FFF', fontSize: 20 }}>Menu</h2>
-        <button 
-          onClick={() => setIsDrawerOpen(false)} 
-          style={{ background: 'transparent', border: 'none', color: '#888', fontSize: 24, cursor: 'pointer' }}
-        >
-          ✖
-        </button>
-      </div>
-
-      {/* Your Awesome CTA Block */}
-      <div style={{ 
-        background: '#161616', 
-        border: '1px dashed #FFD700', 
-        borderRadius: 12, 
-        padding: '20px', 
-        textAlign: 'center' 
-      }}>
-        <div style={{ fontSize: 32, marginBottom: '12px' }}>🤫</div>
-        <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.6, margin: '0 0 20px 0', fontWeight: 500 }}>
-          Know a secret sharing taxi/auto route? We would be glad if you tell everyone too! (route will be reviewed)
-        </p>
-        <button
-          className="tactile-btn"
-          onClick={() => {
-            setIsDrawerOpen(false); 
-            setShowForm(true);      
-          }}
-          style={{ 
-            width: '100%', 
-            padding: '12px', 
-            borderRadius: 8, 
-            fontWeight: 900,
-            fontSize: 16,
-            background: 'linear-gradient(135deg, #FFD700 0%, #F59E0B 100%)',
-            color: '#111',
-            border: 'none',
-            cursor: 'pointer'
-          }}
-        >
-          + Add Route
-        </button>
-      </div>
-
-    </div>
-  </>
-)}
-      {showForm && (
-        <AddRouteForm
-          onSubmit={onAddRoute}
-          onClose={() => setShowForm(false)}
-        />
-      )}
-    </div>
-  );
-}
-
 // ── Main Controller Component ──────────────────────────────────────────────────
 export default function App() {
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [suggestedEdit, setSuggestedEdit] = useState({ 
+    routeName: "", 
+    searchQuery: "", 
+    fare: "", 
+    frequency: "", 
+    hours: "", 
+    landmarks: "" 
+  });
+  // 1. THIS LET'S YOU TYPE IN THE BOXES AGAIN
+  const handleEditChange = (e) => {
+    setSuggestedEdit({
+      ...suggestedEdit,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  // 2. THIS IS THE ACTUAL SUBMIT BUTTON LOGIC
+  const handleSubmitEdit = async () => {
+    if (!suggestedEdit.routeId) {
+      alert("Please select a route first!");
+      return;
+    }
+
+    try {
+      // Build the clean object to send to Firebase
+      const editData = {
+        routeId: suggestedEdit.routeId,
+        routeName: suggestedEdit.routeName,
+        fare: suggestedEdit.fare || "No change",
+        frequency: suggestedEdit.frequency || "No change",
+        hours: suggestedEdit.hours || "No change",
+        landmarks: suggestedEdit.landmarks || "No change",
+        status: "pending",
+        createdAt: new Date().toISOString()
+      };
+
+      await addDoc(collection(db, 'pending_edits'), editData);
+      
+      setToast({ msg: '✅ Edit submitted for review!', color: '#22C55E', textColor: '#FFF' });
+      setShowEditModal(false); 
+      setTimeout(() => {
+        setToast(null); 
+      }, 3000);
+      
+    } catch (error) {
+      console.error("Firebase Edit Error:", error);
+      setToast({ msg: '❌ Failed to submit edit. Check connection.', color: '#dc2626', textColor: '#FFF' });
+      setTimeout(() => {
+        setToast(null); 
+      }, 3000);
+    }
+  };
   const [view, setView] = useState('customer');
-  const [adminMode, setadminMode] = useState(false);
+  const [adminMode, setAdminMode] = useState(false);
   const [approvedRoutes, setApprovedRoutes] = useState([]);
   const [pendingRoutes, setPendingRoutes] = useState([]);
   const [deletedBaseIds, setDeletedBaseIds] = useState(new Set());
@@ -1554,60 +486,58 @@ export default function App() {
     <div
       style={{
         fontFamily: 'system-ui,sans-serif',
-        background: DK,
+        background: '#000000', // Replaced DK just to be safe
         minHeight: '100vh',
-        color: TXT,
+        color: '#FFFFFF', // Replaced TXT just to be safe
       }}
     >
-      {toast && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 16,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 400,
-            background: toast.color,
-            color: toast.textColor,
-            padding: '10px 20px',
-            borderRadius: 12,
-            fontSize: 13,
-            fontWeight: 800,
-          }}
-        >
-          {toast.msg}
-        </div>
-      )}
+      <Toast toast={toast} />
+      
       {view === 'login' && (
         <AdminLoginModal
           onSuccess={() => {
-            setadminMode(true);
+            setAdminMode(true);
             setView('admin');
           }}
           onCancel={() => setView('customer')}
         />
       )}
+      
       {view === 'admin' ? (
-      <AdminView
-      pending={pendingRoutes}
-      handleApprove={handleApprove}
-      onReject={handleReject}
-      switchToCustomer={() => setView('customer')}
-    />
-      ) : (
-        <CustomerView
-          allRoutes={allRoutes}
-          pendingCount={pendingRoutes.length}
-          onAddRoute={handleSubmitRoute}
-          onDeleteRoute={handleDelete}
-          onAdminClick={() => {
-            adminMode ? setView('admin') : setView('login');
-          }}
-          adminMode={adminMode}
-          setAdminMode={setadminMode}
-          showToast={showToast} // <-- Handing it through the door here!
-        />
-      )}
+  <AdminDashboard 
+    pendingRoutes={pendingRoutes} 
+    onApproveRoute={handleApprove} 
+    onRejectRoute={handleReject} 
+    onBack={() => {
+      setAdminMode(false); // Optional: Logs them out of admin mode when they leave
+      setView('customer');
+    }} 
+  />
+) : (
+  <CustomerView 
+    allRoutes={allRoutes}
+    pendingCount={pendingRoutes.length}
+    onAddRoute={handleSubmitRoute}
+    onDeleteRoute={handleDelete}
+    onAdminClick={() => {
+      adminMode ? setView('admin') : setView('login');
+    }}
+    adminMode={adminMode}
+    setAdminMode={setAdminMode}
+    showToast={showToast}
+    setShowEditModal={setShowEditModal}
+  />
+)}
+
+      <SuggestEditModal
+        show={showEditModal}
+        suggestedEdit={suggestedEdit}
+        setShowEditModal={setShowEditModal}
+        handleEditChange={handleEditChange} // Added this line!
+        onSubmitEdit={handleSubmitEdit}
+        allRoutes={allRoutes}         // <--- ADD THIS LINE!
+  setSuggestedEdit={setSuggestedEdit} // <--- ADD THIS LINE too!
+      />
     </div>
   );
 }
