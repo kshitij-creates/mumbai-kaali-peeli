@@ -12,7 +12,7 @@ import autoIcon from '../../assets/auto.svg';
 import { COORDS } from '../../data';
 import { db } from '../../firebase/config';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
-
+import FaqModal from '../modals/FaqModal';
 
 // --- THEME COLORS & STYLES (Moved outside so all components can use them) ---
 const Y = '#EAB308';   
@@ -50,8 +50,15 @@ const translations = {
     language: "Language",
 
     // Secret Route Box (in drawer)
-    secretTitle: "Know a secret route? We'd be glad if you share it!",
-    addRoute: "+ Add Route",
+    secretTitle: (
+      <>
+        Know a local route that isn't on the map? Spill the secret! 🤫
+        <span style={{ display: 'block', fontSize: '12px', color: '#777', marginTop: '6px', fontStyle: 'italic' }}>
+          (route will be reviewed)
+        </span>
+      </>
+    ),
+    addRoute: "+ Add route",
     suggestEdit: "Suggest Edit",
 
     // Route Cards
@@ -294,7 +301,7 @@ function AddRouteForm({ onSubmit, onClose }) {
               <>
                 <span className="pulse-dot"></span> Mapping...
               </>
-            ) : 'Create Route'}
+            ) : 'Submit Route'}
           </button>
           <button type="button" onClick={onClose} className="tactile-btn" style={{ background: '#333', color: '#fff', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer' }}>
             Cancel
@@ -542,7 +549,7 @@ function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
 
   const sel = routes.find((r) => r.id === selectedId);
 
- // 1. GATHER ALL STOPS 24/7 (Smart extraction from curvy paths)
+ // 1. GATHER ALL STOPS 24/7 (Smart extraction from saved coords)
  const allMarkers = useMemo(() => {
   const m = [];
   
@@ -550,35 +557,33 @@ function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
     if (!r.stops || !Array.isArray(r.stops)) return;
     
     r.stops.forEach((stopName, idx) => {
-      // Prevent drawing duplicate markers for the exact same stop
       if (m.some((x) => x.name === stopName)) return;
 
       let pos = null;
 
-      // A. Try dictionary match first (safe fallback)
-      const cleanName = stopName.toLowerCase().trim();
-      const dictKey = Object.keys(COORDS || {}).find(k => k.toLowerCase() === cleanName);
-      if (dictKey && COORDS[dictKey]) {
-        pos = [COORDS[dictKey].lat, COORDS[dictKey].lng];
-      } 
-      // B. THE MAGIC: Rip the coordinates directly from the ends of the curvy path!
-      else if (r.path && r.path.length > 0) {
-        if (idx === 0) {
-          // First stop gets the absolute first coordinate of the line
-          const pt = r.path[0];
-          pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
-        } else if (idx === r.stops.length - 1) {
-          // Last stop gets the absolute final coordinate of the line
-          const pt = r.path[r.path.length - 1];
-          pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
+      // A. Use the true coordinates we saved to Firebase!
+      if (r.stopCoords && r.stopCoords[idx]) {
+        pos = [r.stopCoords[idx].lat, r.stopCoords[idx].lng];
+      }
+      // B. Dictionary fallback for old routes
+      else {
+        const cleanName = stopName.toLowerCase().trim();
+        const dictKey = Object.keys(COORDS || {}).find(k => k.toLowerCase() === cleanName);
+        if (dictKey && COORDS[dictKey]) {
+          pos = [COORDS[dictKey].lat, COORDS[dictKey].lng];
+        } 
+        // C. Curvy path ends fallback
+        else if (r.path && r.path.length > 0) {
+          if (idx === 0) {
+            const pt = r.path[0];
+            pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
+          } else if (idx === r.stops.length - 1) {
+            const pt = r.path[r.path.length - 1];
+            pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
+          }
         }
-      } 
-      // C. Last resort fallback to original GPS ping
-      else if (idx === 0 && r.lat && r.lng) {
-        pos = [r.lat, r.lng];
       }
 
-      // If we successfully found a true coordinate, drop the 24/7 marker!
       if (pos && pos[0] && pos[1]) {
         m.push({ name: stopName, pos });
       }
@@ -587,7 +592,6 @@ function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
   
   return m;
 }, [routes]);
-
   // Coordinates for the selected route line
   const selCoords = useMemo(() => {
     if (!sel) return null;
@@ -681,29 +685,46 @@ function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
       );
     })}
 
-    {/* 4.5 DRAW PERFECT START & END PINS DIRECTLY FROM THE GREEN LINE */}
-    {selCoords && selCoords.length > 1 && (
+    {/* 4.5 DRAW ALL PINS FOR THE SELECTED ROUTE */}
+    {selCoords && selCoords.length > 1 && sel?.stops && (
       <>
-        {/* Exact Start of the line */}
-        <CircleMarker
-          center={selCoords[0]}
-          radius={6}
-          pathOptions={{ color: '#000', weight: 3, fillColor: '#fff', fillOpacity: 1 }}
-        >
-          <Popup>{sel?.stops?.[0] || 'Start'}</Popup>
-        </CircleMarker>
+        {sel.stops.map((stopName, index) => {
+          let pos = null;
 
-        {/* Exact End of the line */}
-        <CircleMarker
-          center={selCoords[selCoords.length - 1]}
-          radius={6}
-          pathOptions={{ color: '#000', weight: 3, fillColor: '#fff', fillOpacity: 1 }}
-        >
-          <Popup>{sel?.stops?.[sel?.stops?.length - 1] || 'End'}</Popup>
-        </CircleMarker>
+          // 1. Pull the exact true coordinates directly from the database!
+          if (sel.stopCoords && sel.stopCoords[index]) {
+            pos = [sel.stopCoords[index].lat, sel.stopCoords[index].lng];
+          } 
+          // 2. Fallback to dictionary for older routes
+          else {
+            const clean = stopName.toLowerCase().trim();
+            const matchKey = Object.keys(COORDS || {}).find(k => k.toLowerCase() === clean);
+            if (matchKey && COORDS[matchKey]) {
+              pos = [COORDS[matchKey].lat, COORDS[matchKey].lng];
+            }
+          }
+
+          // 3. Absolute last resort for older routes with no middle stop data
+          if (!pos) {
+              if (index === 0) pos = selCoords[0];
+              else if (index === sel.stops.length - 1) pos = selCoords[selCoords.length - 1];
+          }
+
+          if (!pos) return null;
+
+          return (
+            <CircleMarker
+              key={`sel-stop-${index}`}
+              center={pos}
+              radius={6}
+              pathOptions={{ color: '#000', weight: 3, fillColor: '#fff', fillOpacity: 1 }}
+            >
+              <Popup>{stopName}</Popup>
+            </CircleMarker>
+          );
+        })}
       </>
     )}
-
         {/* 5. USER LOCATION */}
         {userLoc && (
           <CircleMarker center={[userLoc.lat, userLoc.lng]} radius={7} pathOptions={{ color: '#fff', weight: 3, fillColor: '#3b82f6', fillOpacity: 1 }}>
@@ -742,6 +763,7 @@ function CustomerView({
   const [showContact, setShowContact] = useState(false);
   const [language, setLanguage] = useState('EN');
   const [showLangModal, setShowLangModal] = useState(false);
+  const [showFaq, setShowFaq] = useState(false);
   const handleNearMeClick = () => {
     if (nearMe) {
       setNearMe(null);
@@ -791,7 +813,7 @@ function CustomerView({
   };
 
   const filtered = useMemo(() => {
-    // SECURITY GUARD ADDED HERE: Prevents "Cannot read properties of undefined" crash
+    // SECURITY GUARD: Prevents "Cannot read properties of undefined" crash
     if (!allRoutes || !Array.isArray(allRoutes)) return [];
 
     let results = allRoutes.filter((r) => {
@@ -805,36 +827,46 @@ function CustomerView({
 
     if (nearMe) {
       results = results.map(r => {
-        let minDistance = Infinity;
         
+        // Helper function that just calculates distance between two points
         const calcDist = (lat, lng) => {
           const R = 6371; 
           const dLat = (lat - nearMe.lat) * (Math.PI / 180);
           const dLon = (lng - nearMe.lng) * (Math.PI / 180);
           const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
                     Math.cos(nearMe.lat * (Math.PI / 180)) * Math.cos(lat * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-          const dist = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-          if (dist < minDistance) minDistance = dist;
+          return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
         };
 
-       // Check old path array OR new top-level coordinates
-if (r.path && r.path.length > 0) {
-  r.path.forEach(p => {
-      const lat = Array.isArray(p) ? p[0] : p.lat;
-      const lng = Array.isArray(p) ? p[1] : p.lng;
-      if (lat && lng) calcDist(lat, lng);
-  });
-} else if (r.lat && r.lng) {
-  // This is the missing link for your new routes!
-  calcDist(r.lat, r.lng);
-}
+        let startLat = null;
+        let startLng = null;
 
-        (r.stops || []).forEach(stopName => {
-          const coords = COORDS[stopName];
-          if (coords) calcDist(coords.lat, coords.lng);
-        });
+        // 1. The Magic: Grab the exact first coordinate from the curvy green line
+        if (r.path && r.path.length > 0) {
+          const pt = r.path[0];
+          startLat = Array.isArray(pt) ? pt[0] : pt.lat;
+          startLng = Array.isArray(pt) ? pt[1] : pt.lng;
+        } 
+        // 2. Fallback: If it's an old route without a line, look up the first stop name
+        else if (r.stops && r.stops.length > 0) {
+          const firstStop = r.stops[0].toLowerCase().trim();
+          const matchKey = Object.keys(COORDS || {}).find(k => k.toLowerCase() === firstStop);
+          if (matchKey && COORDS[matchKey]) {
+            startLat = COORDS[matchKey].lat;
+            startLng = COORDS[matchKey].lng;
+          }
+        }
         
-        return { ...r, distance: minDistance };
+        // 3. Absolute Last Resort: The old GPS ping
+        if (!startLat && !startLng && r.lat && r.lng) {
+          startLat = r.lat;
+          startLng = r.lng;
+        }
+
+        // Calculate the true distance to the Start Point
+        const finalDist = (startLat && startLng) ? calcDist(startLat, startLng) : Infinity;
+        
+        return { ...r, distance: finalDist };
       }).sort((a, b) => a.distance - b.distance); 
     }
 
@@ -1206,8 +1238,8 @@ if (r.path && r.path.length > 0) {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
           {translations[language].liveChat}
         </button>
-
-        <button className="menu-item" onClick={() => { setIsDrawerOpen(false); setShowTour(true); }}>
+        
+        <button className="menu-item" onClick={() => { setIsDrawerOpen(false); setShowFaq(true); }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
           {translations[language].featuresGuide}
         </button>
@@ -1248,6 +1280,15 @@ if (r.path && r.path.length > 0) {
           onClose={() => setShowForm(false)}
         />
       )}
+      {/* Drop the FAQ Modal right here! */}
+      <FaqModal 
+        isOpen={showFaq} 
+        onClose={() => setShowFaq(false)} 
+        onOpenTour={() => {
+          setShowFaq(false); // Close the FAQ
+          setShowTour(true); // Open the old Tour!
+        }}
+      />
       {showChat && (
         <LiveChatModal 
           onClose={() => setShowChat(false)} 

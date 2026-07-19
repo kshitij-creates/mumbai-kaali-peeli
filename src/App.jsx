@@ -410,7 +410,6 @@ export default function App() {
   );
 
   const handleSubmitRoute = async (r) => {
-    // 1. Create a clean copy and strip any 'undefined' values that make Firebase crash
     const sanitizedRoute = { ...r };
     
     Object.keys(sanitizedRoute).forEach(key => {
@@ -420,46 +419,56 @@ export default function App() {
       }
     });
 
-    // 2. ISOLATED OSRM FETCH (If this fails, it skips curves but SAVES the route anyway)
+    // NEW: Array to permanently store the exact GPS for every stop!
+    sanitizedRoute.stopCoords = new Array(sanitizedRoute.stops?.length || 0).fill(null);
+
     try {
       const routeCoords = [];
 
-      // Grab start GPS
+      // A. Grab the starting GPS pin
       if (sanitizedRoute.lat && sanitizedRoute.lng) {
         routeCoords.push(`${sanitizedRoute.lng},${sanitizedRoute.lat}`);
+        sanitizedRoute.stopCoords[0] = { lat: sanitizedRoute.lat, lng: sanitizedRoute.lng };
       }
 
-      // Loop stops safely
+      // B. LIVE GEOCODING
       if (sanitizedRoute.stops && Array.isArray(sanitizedRoute.stops)) {
-        sanitizedRoute.stops.forEach((stopName, index) => {
-          if (!stopName) return; // Prevent crash if user left a blank stop
-          if (index === 0 && sanitizedRoute.lat) return;
+        for (let i = 0; i < sanitizedRoute.stops.length; i++) {
+          if (i === 0 && sanitizedRoute.lat) continue;
 
-          // Force to string to prevent regex crashes
-          const clean = String(stopName).toLowerCase().trim();
-          
-          let matchKey = Object.keys(COORDS).find(k => k.toLowerCase() === clean);
-          
-          if (!matchKey) {
-              matchKey = Object.keys(COORDS).find(k => k.toLowerCase().replace(/\([a-z]\)/g, '').trim() === clean.replace(/\([a-z]\)/g, '').trim());
-          }
-          if (!matchKey && clean.includes("thane")) {
-              matchKey = Object.keys(COORDS).find(k => k.toLowerCase().includes("thane"));
-          }
+          const stopName = sanitizedRoute.stops[i];
+          if (!stopName) continue;
 
-          if (matchKey && COORDS[matchKey]) {
-            routeCoords.push(`${COORDS[matchKey].lng},${COORDS[matchKey].lat}`);
+          try {
+            const searchQuery = encodeURIComponent(`${stopName}, Maharashtra, India`);
+            const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}&limit=1&viewbox=72.75,19.50,73.40,18.90&bounded=0`;
+            
+            const geoRes = await fetch(geoUrl);
+            const geoData = await geoRes.json();
+
+            if (geoData && geoData.length > 0) {
+              const lon = Number(geoData[0].lon);
+              const lat = Number(geoData[0].lat);
+              
+              routeCoords.push(`${lon},${lat}`);
+              
+              // SAVE THE EXACT GPS FOR THIS SPECIFIC STOP!
+              sanitizedRoute.stopCoords[i] = { lat, lng: lon };
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (geoErr) {
+            console.error("Geocoding failed for", stopName, geoErr);
           }
-        });
+        }
       }
 
-      // Call mapping server
+      // C. FETCH CURVY ROADS
       if (routeCoords.length > 1) {
         const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${routeCoords.join(';')}?overview=full&geometries=geojson`;
         const res = await fetch(osrmUrl);
         const data = await res.json();
 
-        // Convert format for Leaflet
         if (data.routes && data.routes[0] && data.routes[0].geometry) {
           sanitizedRoute.path = data.routes[0].geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
         }
@@ -468,13 +477,11 @@ export default function App() {
       console.warn("Curve generation skipped due to error, but saving route anyway:", err);
     }
 
-    // 3. GUARANTEED FIREBASE SAVE
     try {
       await addDoc(collection(db, 'pending_routes'), sanitizedRoute);
       showToast('✅ Route submitted to Admin for review!', '#16a34a', '#fff');
     } catch (fbErr) {
-      console.error("Firebase rejected the save:", fbErr);
-      alert("Database Error: " + fbErr.message); // This will physically pop up if Firebase is mad
+      alert("Database Error: " + fbErr.message); 
     }
   };
 

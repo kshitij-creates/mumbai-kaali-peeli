@@ -193,7 +193,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, o
           }}>
           ₹ {(route.fare || '').replace('₹', '').trim()}
           </span>
-          <span> 🔃 {translations[language].every} {(route.freq || '').replace('every', '').replace('mins', '').trim()} {translations[language].mins}</span>
+          <span> 🕦 {translations[language].every} {String(route.freq || route.frequency || '').toLowerCase().replace('every', '').replace('mins', '').trim()} {translations[language].mins}</span>
           {distLabel && (
             <span style={{ color: Y, fontWeight: 700 }}>📍 {distLabel} away</span>
           )}
