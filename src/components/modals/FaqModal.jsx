@@ -117,7 +117,7 @@ export default function FaqModal({ isOpen, onClose, onOpenTour }) {
           <div>
             <h3 style={{ color: '#fff', fontSize: '16px', marginBottom: '8px' }}>➕ How do I add a missing route?</h3>
             <p style={{ color: '#aaa', fontSize: '14px', lineHeight: '1.5', margin: 0 }}>
-              Open the Menu and tap <strong style={{ color: '#FFD700' }}>+ Add route</strong>. Fill in the starting point, destination, stops, fare, and frequency. It will be sent to Admin for a quick review before appearing on the map!
+              Open the Menu and tap <strong style={{ color: '#FFD700' }}>+ Add route</strong>. Fill in the starting point and click + then Fill in the stops/destination, fare, and frequency. It will be sent to Admin for a quick review before appearing on the map!
             </p>
           </div>
 

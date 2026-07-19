@@ -180,19 +180,7 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, o
             color: MUTED,
           }}
         >
-          <span style={{ 
-            fontFamily: '"Share Tech Mono", monospace', 
-            color: '#ff3333',
-            textShadow: '0px 0px 8px rgba(255, 51, 51, 0.8)',
-            fontSize: '15px',
-            letterSpacing: '1px',
-            background: '#111',
-            padding: '2px 6px',
-            borderRadius: '4px',
-            border: '1px solid #333'
-          }}>
-          ₹ {(route.fare || '').replace('₹', '').trim()}
-          </span>
+         
           <span> 🕦 {translations[language].every} {String(route.freq || route.frequency || '').toLowerCase().replace('every', '').replace('mins', '').trim()} {translations[language].mins}</span>
           {distLabel && (
             <span style={{ color: Y, fontWeight: 700 }}>📍 {distLabel} away</span>
@@ -218,64 +206,83 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, o
               </div>
             )}
   
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: 5,
-                marginBottom: 8,
-              }}
-            >
-              {route.stops.map((s, i) => {
-                let lat, lng;
-                // 1. Check if it's in the path array (for old routes)
-        if (route.path && route.path[i]) {
-          lat = Array.isArray(route.path[i]) ? route.path[i][0] : route.path[i].lat;
-          lng = Array.isArray(route.path[i]) ? route.path[i][1] : route.path[i].lng;
-      } 
-      // 2. NEW: Check if it's saved at the top level (for your new routes)
-      else if (route.lat && route.lng) {
-          lat = route.lat;
-          lng = route.lng;
-      } 
-      // 3. Fallback to the COORDS dictionary
-      else if (COORDS[s]) {
-          lat = COORDS[s].lat;
-          lng = COORDS[s].lng;
-      }
+  <div style={{ marginTop: '12px', background: '#1a1a1a', padding: '10px', borderRadius: '8px', marginBottom: 8 }}>
+            <h4 style={{ margin: '0 0 8px 0', color: '#888', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              Route & Fares
+            </h4>
+            
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, color: '#eee', fontSize: '14px' }}>
+            {route.stops.map((s, i) => {
+            let lat, lng;
+
+            // 1. DYNAMIC ROUTES: Check if we saved the coordinates array from the form!
+            if (route.stopCoordinates && route.stopCoordinates[i]) {
+              lat = route.stopCoordinates[i].lat;
+              lng = route.stopCoordinates[i].lng;
+            } 
+            // 2. OLD ROUTES FALLBACK: Only grab the main lat/lng if it's the very first stop
+            else if (i === 0 && route.lat && route.lng) {
+              lat = route.lat;
+              lng = route.lng;
+            }
+            // 3. HARDCODED FALLBACK: Just in case older routes need it
+            else if (typeof COORDS !== 'undefined') {
+              const match = Object.keys(COORDS).find(k => k.toLowerCase() === s.toLowerCase().trim());
+              if (match) {
+                lat = COORDS[match].lat;
+                lng = COORDS[match].lng;
+              }
+            }
                 
                 const hasCoords = lat !== undefined && lng !== undefined;
-  
                 return (
-                  <span
+                  <li 
                     key={i}
-                    onClick={(e) => {
-                      e.stopPropagation(); 
-                      if (hasCoords && onNavigate) onNavigate(s, lat, lng);
-                    }}
-                    style={{
-                      background: '#252525',
-                      color: '#ddd',
-                      fontSize: 11,
-                      padding: '3px 8px',
-                      borderRadius: 10,
-                      cursor: hasCoords ? 'pointer' : 'default',
-                      display: 'flex',
+                    style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
                       alignItems: 'center',
-                      gap: '4px',
-                      border: '1px solid #444' 
+                      padding: '8px 0',
+                      borderBottom: i === route.stops.length - 1 ? 'none' : '1px dashed #333' 
                     }}
                   >
-                    {s} {hasCoords && <span title="Get walking directions">🚶</span>}
-                  </span>
+                    {/* THE CLICKABLE STOP NAME WITH EMOJIS */}
+                    <span
+                     onClick={(e) => {
+                      e.stopPropagation(); 
+                
+                      if (hasCoords && typeof onNavigate === 'function') onNavigate(s, lat, lng);
+                    }}
+                      style={{
+                        cursor: hasCoords ? 'pointer' : 'default',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        color: hasCoords ? '#60a5fa' : '#ddd', // Make clickable links light blue
+                      }}
+                    >
+                      <span>{i === 0 ? '🟢' : '📍'}</span>
+                      {s} 
+                      {hasCoords && <span title="Get walking directions" style={{ fontSize: '12px' }}>🚶</span>}
+                    </span>
+                    
+                    {/* THE NEW DYNAMIC FARE COMPONENT */}
+                    {i > 0 && (
+                      <span style={{ color: '#FFD700', fontWeight: 'bold' }}>
+                        ₹{route.fares && route.fares[i] ? route.fares[i] : 'TBD'}
+                      </span>
+                    )}
+                  </li>
                 );
               })}
+            </ul>
             </div>
-            <div style={{ fontSize: 12, color: '#aaa' }}>{route.hours}</div>
-          </div>
-        )}
-      </div>
-    );
+          
+          <div style={{ fontSize: 12, color: '#aaa', marginTop: '12px' }}>{route.hours}</div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default RouteCard;

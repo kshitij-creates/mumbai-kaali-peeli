@@ -10,7 +10,7 @@ export default function Toast({ toast }) {
         top: 16,
         left: "50%",
         transform: "translateX(-50%)",
-        zIndex: 400,
+        zIndex: 99999,
         background: toast.color || "#22C55E", // Added a fallback green just in case!
         color: toast.textColor || "#FFFFFF",
         padding: "10px 20px",

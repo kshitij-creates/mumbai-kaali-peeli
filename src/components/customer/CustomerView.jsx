@@ -168,6 +168,8 @@ const fetchCoordinates = async (placeName) => {
 function AddRouteForm({ onSubmit, onClose }) {
   const [stopsList, setStopsList] = useState([]);
   const [currentStop, setCurrentStop] = useState('');
+  const [faresList, setFaresList] = useState([]); // NEW: Tracks the list of prices
+  const [currentFare, setCurrentFare] = useState(''); // NEW: Tracks the price currently being typed
   const [otherInfo, setOtherInfo] = useState({
     type: 'share_taxi',
     fare: '',
@@ -180,7 +182,11 @@ function AddRouteForm({ onSubmit, onClose }) {
   const addStop = () => {
     if (currentStop.trim()) {
       setStopsList([...stopsList, currentStop.trim()]);
+      // Push the fare, or default to 'TBD' if they left it blank
+      setFaresList([...faresList, currentFare.trim() || 'TBD']); 
+      
       setCurrentStop('');
+      setCurrentFare(''); // Reset the fare input for the next stop
     }
   };
 
@@ -191,20 +197,32 @@ function AddRouteForm({ onSubmit, onClose }) {
     setIsSearching(true);
 
     // Grab the first stop (pickup point) to place the map pin
-    const firstStopName = stopsList[0];
-    const coords = await fetchCoordinates(firstStopName);
-
+   // Fetch coordinates for every single stop in the list automatically
+// Fetch coordinates sequentially so the API doesn't block us!
+const allCoords = [];
+for (const stopName of stopsList) {
+  try {
+    const coords = await fetchCoordinates(stopName);
+    allCoords.push(coords ? coords : { lat: 19.2183, lng: 72.9781 });
+  } catch (error) {
+    // If one fails, push the fallback so the app doesn't crash
+    allCoords.push({ lat: 19.2183, lng: 72.9781 });
+  }
+}
+// Safely grab the very first stop's coordinates for the old logic
+const mainCoords = allCoords[0] || { lat: 19.2183, lng: 72.9781 };
     const newRoute = {
       type: otherInfo.type,
       name: stopsList.join(' → '),
       stops: stopsList,
-      fare: otherInfo.fare,
+      fares: faresList,
+      stopCoordinates: allCoords,
       frequency: otherInfo.freq,
       hours: otherInfo.hours,
       landmarks: otherInfo.landmarks,
       // Add the new coordinates, with a fallback just in case the API fails
-      lat: coords ? coords.lat : 19.2183, 
-      lng: coords ? coords.lng : 72.9781
+      lat: mainCoords.lat, 
+      lng: mainCoords.lng, 
     };
 
     // Pass the newly built route up to the parent component to save it
@@ -221,7 +239,7 @@ function AddRouteForm({ onSubmit, onClose }) {
         inset: 0,
         background: 'rgba(0,0,0,0.6)',
         backdropFilter: 'blur(8px)',
-        zIndex: 100,
+        zIndex: 9999,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -244,14 +262,28 @@ function AddRouteForm({ onSubmit, onClose }) {
           </select>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              placeholder="Add stop (e.g. Bandra)"
-              value={currentStop}
-              onChange={(e) => setCurrentStop(e.target.value)}
-              className="cyber-input"
-            />
-            <button
-              type="button"
+          <input
+        placeholder="Add stop (e.g. Bandra)"
+        value={currentStop}
+        onChange={(e) => setCurrentStop(e.target.value)}
+        className="cyber-input"
+      />
+      
+      {/* Only show Fare input IF they already added a starting point */}
+      {stopsList.length > 0 && (
+        <input 
+          required={false}
+          type="number" 
+          placeholder="Fare (₹)" 
+          value={currentFare} 
+          onChange={(e) => setCurrentFare(e.target.value)} 
+          style={{ width: '90px' }}
+          className="cyber-input"
+        />
+      )}
+
+      <button
+        type="button"
               onClick={addStop}
               className="tactile-btn"
               style={{
@@ -267,14 +299,16 @@ function AddRouteForm({ onSubmit, onClose }) {
           </div>
           
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-            {stopsList.map((s, i) => (
-              <span key={i} style={{ background: '#333', padding: '4px 10px', borderRadius: 12, fontSize: 12, color: '#fff' }}>
-                {s}
-              </span>
-            ))}
-          </div>
+  {stopsList.map((s, i) => (
+    <span key={i} style={{ background: '#333', padding: '4px 10px', borderRadius: 12, fontSize: '12px' }}>
+      {/* If it is the first stop (index 0), just show the name. Otherwise, show name + fare! */}
+      {i === 0 ? `📍 Start: ${s}` : `${s} - `}
+      
+      {i > 0 && <span style={{ color: '#ef4444' }}>₹{faresList[i]}</span>}
+    </span>
+  ))}
+</div>
 
-          <input required placeholder="Fare (e.g. ₹15-20)" value={otherInfo.fare} onChange={(e) => setOtherInfo({ ...otherInfo, fare: e.target.value })} className="cyber-input" />
           <input required placeholder="Frequency (e.g. Every 5 mins)" value={otherInfo.freq} onChange={(e) => setOtherInfo({ ...otherInfo, freq: e.target.value })} className="cyber-input" />
           <input required placeholder="Hours (e.g. 6 AM - 11 PM)" value={otherInfo.hours} onChange={(e) => setOtherInfo({ ...otherInfo, hours: e.target.value })} className="cyber-input" />
           <input 
@@ -439,10 +473,10 @@ function AppWalkthrough({ onEnd }) {
   const steps = [
     { title: "Find Your Route", text: "Use the search bar at the top to instantly find sharing autos and taxis for your specific destination.", top: '15%', align: 'center' },
     { title: "Switch Views", text: "Toggle between the Map view to see the routes visually, or the List view for fares and timings.", top: '50%', align: 'center' },
-    { title: "Walking Directions", text: "Select any route to instantly see the dashed walking path from your exact location to the nearest pickup stand.", top: '65%', align: 'center' },
+    { title: "Walking Directions", text: "Select any route and click the🚶icon to instantly see the dashed walking path from your exact location to the nearest pickup stand.", top: '65%', align: 'center' },
     
     // NEW STEP ADDED HERE:
-    { title: "Live Route Chats", text: "Select a route and open Live Chat to talk with commuters on that exact line. Made a typo? You can hit the trash icon to unsend your messages!", top: '45%', align: 'center' },
+    { title: "Live Route Chats", text: "Select a route and open Live Chat to talk with commuters on that exact sharing route line. Made a typo? You can hit the trash icon to unsend your messages!", top: '45%', align: 'center' },
     
     { title: "Find Nearest Stops", text: "Tap the 'Near Me' radar icon anytime to let GPS find the closest sharing stands to your current location.", top: '30%', align: 'flex-end' },
     { title: "Help the Community", text: "Open the menu to add secret routes you know about, or suggest edits to existing ones!", top: '40%', align: 'flex-start' }
