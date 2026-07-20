@@ -1,8 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 
-export default function AdminDashboard({ pendingRoutes= [], onApproveRoute, onRejectRoute, onBack }) {
+export default function AdminDashboard({ 
+  pendingRoutes = [], 
+  onApproveRoute, 
+  onRejectRoute, 
+  onApproveEdit, // <-- Newly added prop to route back to App.jsx
+  onBack 
+}) {
   const [edits, setEdits] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,24 +27,19 @@ export default function AdminDashboard({ pendingRoutes= [], onApproveRoute, onRe
     fetchEdits();
   }, []);
 
+  // Rewired to use the App.jsx function for approvals
   const handleEditApproval = async (edit, approve) => {
     try {
       if (approve) {
-        const routeRef = doc(db, "approved_routes", edit.routeId);
-        const updateData = {};
-        if (edit.fare && edit.fare !== "No change") updateData.fare = edit.fare;
-        if (edit.frequency && edit.frequency !== "No change") updateData.freq = edit.frequency;
-        if (edit.hours && edit.hours !== "No change") updateData.hours = edit.hours;
-        if (edit.landmarks && edit.landmarks !== "No change") updateData.landmarks = edit.landmarks;
-
-        // Only update if there's actually data to change
-        if (Object.keys(updateData).length > 0) {
-           await updateDoc(routeRef, updateData);
-           alert("Route updated successfully!");
+        if (onApproveEdit) {
+          await onApproveEdit(edit);
         }
+      } else {
+        // If rejected, just delete the request from the database
+        await deleteDoc(doc(db, "pending_edits", edit.id));
       }
 
-      await deleteDoc(doc(db, "pending_edits", edit.id));
+      // Immediately remove the edit card from the admin screen
       setEdits(edits.filter(e => e.id !== edit.id));
     } catch (error) {
       console.error("Error processing request:", error);
@@ -94,7 +95,7 @@ export default function AdminDashboard({ pendingRoutes= [], onApproveRoute, onRe
             <div key={edit.id} style={{ border: '1px dashed #EAB308', borderRadius: '12px', padding: '16px', marginBottom: '16px', backgroundColor: '#111' }}>
               <h3 style={{ marginTop: 0, color: '#FFF' }}>Target: {edit.routeName}</h3>
               <div style={{ fontSize: '14px', color: '#CCC', marginBottom: '16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div style={{ background: '#000', padding: '8px', borderRadius: '6px' }}><strong>Fare:</strong> {edit.fare}</div>
+                <div style={{ background: '#000', padding: '8px', borderRadius: '6px' }}><strong>Fare:</strong> {Array.isArray(edit.fares) ? edit.fares.join(', ') : edit.fares}</div>
                 <div style={{ background: '#000', padding: '8px', borderRadius: '6px' }}><strong>Freq:</strong> {edit.frequency}</div>
                 <div style={{ background: '#000', padding: '8px', borderRadius: '6px' }}><strong>Hours:</strong> {edit.hours}</div>
                 <div style={{ background: '#000', padding: '8px', borderRadius: '6px' }}><strong>Landmarks:</strong> {edit.landmarks}</div>

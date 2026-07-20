@@ -3,7 +3,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics"; 
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAuca_bBRV27xRnxmPJKJviaSQGj3lfnGo",
+  apiKey: "AIzaSyAuca_BbRV27xRnxmPJKJviaSQGj3lfnGo",
   authDomain: "mumbai-kaali-peeli.firebaseapp.com",
   projectId: "mumbai-kaali-peeli",
   storageBucket: "mumbai-kaali-peeli.firebasestorage.app",

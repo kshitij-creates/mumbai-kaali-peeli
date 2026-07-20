@@ -95,7 +95,8 @@ export default function SuggestEditModal({
         {/* Input Fields */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {[
-            { label: 'New Fare (₹)', name: 'fare', placeholder: 'e.g. 20' },
+          // Change it to this:
+{ label: 'New Fares (comma separated)', name: 'fares', placeholder: 'e.g. 15, 30 (Skip the start point)' },
             { label: 'New Frequency', name: 'frequency', placeholder: 'e.g. Every 5 mins' },
             { label: 'Operating Hours', name: 'hours', placeholder: 'e.g. 6 AM - 10 PM' },
             { label: 'Landmarks', name: 'landmarks', placeholder: 'e.g. Near Station East' }

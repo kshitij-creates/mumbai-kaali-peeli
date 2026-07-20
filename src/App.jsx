@@ -314,14 +314,17 @@ function AdminView({ pending, handleApprove, onReject, switchToCustomer }) {
 // ── Main Controller Component ──────────────────────────────────────────────────
 export default function App() {
   const [showEditModal, setShowEditModal] = useState(false);
+  
+  // CHANGED: 'fare' is now 'fares' to match your modal input
   const [suggestedEdit, setSuggestedEdit] = useState({ 
     routeName: "", 
     searchQuery: "", 
-    fare: "", 
+    fares: "", 
     frequency: "", 
     hours: "", 
     landmarks: "" 
   });
+
   // 1. THIS LET'S YOU TYPE IN THE BOXES AGAIN
   const handleEditChange = (e) => {
     setSuggestedEdit({
@@ -338,11 +341,22 @@ export default function App() {
     }
 
     try {
+      // NEW: Convert the comma-separated string into an array of numbers
+      // NEW: Convert the string into an array, and auto-add the 0 at the start!
+      let parsedFares = null;
+      if (suggestedEdit.fares && typeof suggestedEdit.fares === 'string') {
+        // 1. Turn what the user typed (e.g. "20, 30") into an array
+        const userEnteredFares = suggestedEdit.fares.split(',').map(f => Number(f.trim()));
+        
+        // 2. Slap a 0 at the very front for the starting point!
+        parsedFares = [0, ...userEnteredFares];
+      }
+
       // Build the clean object to send to Firebase
       const editData = {
         routeId: suggestedEdit.routeId,
         routeName: suggestedEdit.routeName,
-        fare: suggestedEdit.fare || "No change",
+        fares: parsedFares || "No change", // Sending the array here!
         frequency: suggestedEdit.frequency || "No change",
         hours: suggestedEdit.hours || "No change",
         landmarks: suggestedEdit.landmarks || "No change",
@@ -366,6 +380,7 @@ export default function App() {
       }, 3000);
     }
   };
+
   const [view, setView] = useState('customer');
   const [adminMode, setAdminMode] = useState(false);
   const [approvedRoutes, setApprovedRoutes] = useState([]);
@@ -373,7 +388,7 @@ export default function App() {
   const [deletedBaseIds, setDeletedBaseIds] = useState(new Set());
   const [toast, setToast] = useState(null);
 
-  const showToast = (msg, color = Y, textColor = BK) => {
+  const showToast = (msg, color = '#FFD700', textColor = '#000') => {
     setToast({ msg, color, textColor });
     setTimeout(() => setToast(null), 3500);
   };
@@ -401,13 +416,33 @@ export default function App() {
     };
   }, []);
 
-  const allRoutes = useMemo(
-    () => [
-      ...BASE_ROUTES.filter((r) => !deletedBaseIds.has(r.id)),
-      ...approvedRoutes,
-    ],
-    [approvedRoutes, deletedBaseIds]
-  );
+  const allRoutes = useMemo(() => {
+    // 1. Organize all approved Firebase routes (both new routes and edits) by their ID
+    const firestoreRoutesMap = new Map();
+    approvedRoutes.forEach(route => firestoreRoutesMap.set(route.id.toString(), route));
+
+    // 2. Loop through your hardcoded BASE_ROUTES
+    const mergedBaseRoutes = BASE_ROUTES
+      .filter((r) => !deletedBaseIds.has(r.id))
+      .map((baseRoute) => {
+        const stringId = baseRoute.id.toString();
+        
+        // If this base route has an approved edit in Firebase, merge the edits IN!
+        if (firestoreRoutesMap.has(stringId)) {
+          const edits = firestoreRoutesMap.get(stringId);
+          firestoreRoutesMap.delete(stringId); // Remove it so it doesn't duplicate later
+          
+          // This overwrites the old base data with your new edited arrays
+          return { ...baseRoute, ...edits }; 
+        }
+        
+        // No edits? Just return the normal base route
+        return baseRoute; 
+      });
+
+    // 3. Combine the newly merged base routes with any completely new community routes
+    return [...mergedBaseRoutes, ...Array.from(firestoreRoutesMap.values())];
+  }, [approvedRoutes, deletedBaseIds]);
 
   const handleSubmitRoute = async (r) => {
     const sanitizedRoute = { ...r };
@@ -517,6 +552,32 @@ export default function App() {
       alert("Firestore Error: " + error.message);
     }
   };
+  const handleApproveEdit = async (edit) => {
+    try {
+      // 1. Point to the specific route in the database using the routeId
+      // We convert it to a string just in case it's a number from BASE_ROUTES
+      const routeRef = doc(db, 'approved_routes', edit.routeId.toString());
+
+      // 2. Build our update object. 
+      // We only want to overwrite the data if the user actually typed a new value.
+      const updates = {};
+      if (edit.fares !== "No change") updates.fares = edit.fares; // This safely writes your new array!
+      if (edit.frequency !== "No change") updates.freq = edit.frequency;
+      if (edit.hours !== "No change") updates.hours = edit.hours;
+      
+      // 3. Update the main route document 
+      // { merge: true } is CRITICAL here—it ensures we don't accidentally delete the route's coordinates or stops!
+      await setDoc(routeRef, updates, { merge: true });
+
+      // 4. Delete the pending edit request now that it has been applied
+      await deleteDoc(doc(db, 'pending_edits', edit.id));
+
+      showToast('✅ Route edit applied successfully!', '#16a34a', '#fff');
+    } catch (error) {
+      console.error("Error approving edit:", error);
+      alert("Error applying edit: " + error.message);
+    }
+  };
 
   const handleReject = async (id) => {
     await deleteDoc(doc(db, 'pending_routes', id.toString()));
@@ -549,6 +610,7 @@ export default function App() {
     pendingRoutes={pendingRoutes} 
     onApproveRoute={handleApprove} 
     onRejectRoute={handleReject} 
+    onApproveEdit={handleApproveEdit}
     onBack={() => {
       setAdminMode(false); // Optional: Logs them out of admin mode when they leave
       setView('customer');
