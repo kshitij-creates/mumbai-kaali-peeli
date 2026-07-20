@@ -13,7 +13,8 @@ import { COORDS } from '../../data';
 import { db } from '../../firebase/config';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc } from 'firebase/firestore';
 import FaqModal from '../modals/FaqModal';
-
+import runningTaxi from '../../assets/running-taxi.svg';
+import runningAuto from '../../assets/running-auto.svg';
 // --- THEME COLORS & STYLES (Moved outside so all components can use them) ---
 const Y = '#EAB308';   
 const BK = '#000000';  
@@ -340,6 +341,9 @@ const mainCoords = allCoords[0] || { lat: 19.2183, lng: 72.9781 };
           <button type="button" onClick={onClose} className="tactile-btn" style={{ background: '#333', color: '#fff', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer' }}>
             Cancel
           </button>
+          <div style={{ fontSize: '10px', color: '#888', textAlign: 'center', marginTop: '12px', letterSpacing: '0.5px' }}>
+  * Please use exact stop names (e.g., "Bandra Station West") so map routing works correctly.
+</div>
         </form>
       </div>
     </div>
@@ -979,12 +983,19 @@ function CustomerView({
     transition: 'all 0.2s ease'
   }}
 >
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    {/* Staggered lines: Top is full, middle is short, bottom is medium */}
-    <line x1="4" y1="7" x2="20" y2="7" style={{ transition: 'all 0.3s ease' }}></line>
-    <line x1="4" y1="12" x2="14" y2="12" style={{ transition: 'all 0.3s ease' }}></line>
-    <line x1="4" y1="17" x2="18" y2="17" style={{ transition: 'all 0.3s ease' }}></line>
-  </svg>
+<svg 
+  width="24" 
+  height="24" 
+  viewBox="0 0 24 24" 
+  style={{ filter: 'drop-shadow(0 0 4px #39FF14)' }}
+>
+  <circle cx="4" cy="4" r="2.5" fill="#39FF14" />
+  <circle cx="4" cy="12" r="2.5" fill="#39FF14" />
+  <circle cx="4" cy="20" r="2.5" fill="#39FF14" />
+  <rect x="9" y="2" width="15" height="4" rx="2" fill="#FFD700" />
+  <rect x="9" y="10" width="15" height="4" rx="2" fill="#FFD700" />
+  <rect x="9" y="18" width="15" height="4" rx="2" fill="#FFD700" />
+</svg>
 </button>
             
             <div onClick={() => {
@@ -1015,21 +1026,29 @@ function CustomerView({
           <div style={{ position: 'relative', width: '100%', borderRadius: '8px' }}>
             
             <div className="shimeji" style={{ animationDelay: '0s' }}>
-              <svg width="24" height="14" viewBox="0 0 24 14">
-                <path d="M2 10 L2 5 L6 2 L16 2 L20 5 L22 10 Z" fill="#FFD700" stroke="#000" strokeWidth="1"/>
-                <path d="M6 2 L16 2 L18 5 L4 5 Z" fill="#111"/>
-                <circle cx="5" cy="12" r="2" fill="#333"/><circle cx="17" cy="12" r="2" fill="#333"/>
-                <circle cx="14" cy="4" r="1.5" fill="#fff"/>
-              </svg>
+            <img 
+  src={runningTaxi} 
+  alt="Shimeji Taxi" 
+  style={{ 
+    width: '32px', 
+    height: '16px', 
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 0 5px rgba(255, 215, 0, 0.8))' 
+  }} 
+/>
             </div>
 
             <div className="shimeji" style={{ animationDelay: '-6s' }}>
-              <svg width="22" height="14" viewBox="0 0 22 14">
-                <path d="M3 10 L3 2 L14 2 L18 6 L19 10 Z" fill="#111" stroke="#FFD700" strokeWidth="1"/>
-                <path d="M5 2 L12 2 L12 6 L4 6 Z" fill="none" stroke="#FFD700"/>
-                <circle cx="6" cy="12" r="1.5" fill="#333"/><circle cx="16" cy="12" r="1.5" fill="#333"/>
-                <circle cx="9" cy="4.5" r="1.5" fill="#fff"/>
-              </svg>
+            <img 
+  src={runningAuto} 
+  alt="Shimeji Auto" 
+  style={{ 
+    width: '32px', 
+    height: '16px', 
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 0 5px rgba(255, 215, 0, 0.8))' 
+  }} 
+/>
             </div>
 
             <input

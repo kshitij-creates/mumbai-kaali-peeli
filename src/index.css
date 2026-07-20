@@ -1,3 +1,7 @@
+@font-face {
+  font-family: 'RickshawMeter';
+  src: url('https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-BoldItalic.woff2') format('woff2');
+}
 :root {
   --text: #6b6375;
   --text-h: #08060d;

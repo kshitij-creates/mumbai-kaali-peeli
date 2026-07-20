@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { COORDS } from '../../data';
+import autoIcon from '../../assets/auto.svg';
 
 // --- THEME COLORS & CONSTANTS ---
 const Y = '#EAB308';
@@ -13,8 +14,11 @@ const BORDER = '#333333';
 // --- META & TYPEBADGE ---
 // Moved outside the main function so both RouteCard and TypeBadge can use it!
 const META = {
-  taxi: { color: '#EAB308', icon: '🚕', bg: 'rgba(234, 179, 8, 0.1)', l: 'Taxi' },
-  auto: { color: '#22C55E', icon: '🛺', bg: 'rgba(34, 197, 94, 0.1)', l: 'Auto' }
+  // Uses the public folder path directly
+  taxi: { color: '#EAB308', icon: '/taxi.svg', bg: 'rgba(234, 179, 8, 0.1)', l: 'Taxi' },
+  
+  // Uses the imported variable from the assets folder
+  auto: { color: '#22C55E', icon: autoIcon, bg: 'rgba(34, 197, 94, 0.1)', l: 'Auto' }
 };
 
 const TypeBadge = ({ type }) => {
@@ -37,7 +41,7 @@ const TypeBadge = ({ type }) => {
         gap: '6px' 
       }}
     >
-      <span style={{ fontSize: '14px' }}>{m.icon}</span>
+      <img src={m.icon} alt={m.l} style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
       {m.l}
     </div>
   );
@@ -261,17 +265,36 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, o
                         color: hasCoords ? '#60a5fa' : '#ddd', // Make clickable links light blue
                       }}
                     >
-                      <span>{i === 0 ? '🟢' : '📍'}</span>
+                     <span>{['📍', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'][i] || '📍'}</span>
                       {s} 
                       {hasCoords && <span title="Get walking directions" style={{ fontSize: '12px' }}>🚶</span>}
                     </span>
                     
                     {/* THE NEW DYNAMIC FARE COMPONENT */}
                     {i > 0 && (
-                      <span style={{ color: '#FFD700', fontWeight: 'bold' }}>
-                        ₹{route.fares && route.fares[i] ? route.fares[i] : 'TBD'}
-                      </span>
-                    )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            {/* Rupee sign bumped up to 14px */}
+            <span style={{ color: '#aaa', fontWeight: 'bold', fontSize: '14px' }}>₹</span>
+            
+            {/* Screen and numbers increased by ~30% */}
+            <span 
+              style={{ 
+                fontFamily: "'RickshawMeter', monospace",
+                fontSize: '16px', // Increased from 12px
+                color: '#ff0000', 
+                backgroundColor: '#0a0a0a', 
+                padding: '3px 6px', // Slightly larger box to fit the new size
+                borderRadius: '2px', 
+                letterSpacing: '1px',
+                // Glow scaled up slightly to match the larger text
+                textShadow: '0 0 3px #ff0000, 0 0 8px #ff0000', 
+                boxShadow: 'inset 0 0 5px rgba(0,0,0,0.8)' 
+              }}
+            >
+              {route.fares && route.fares[i] ? route.fares[i] : '00'}
+            </span>
+          </div>
+        )}
                   </li>
                 );
               })}
