@@ -10,6 +10,7 @@ import SuggestEditModal from "./components/modals/SuggestEditModal";
 import RouteCard from './components/customer/RouteCard';
 import CustomerView from './components/customer/CustomerView';
 import AdminDashboard from "./components/admin/AdminDashboard";
+import { Analytics } from "@vercel/analytics/react";
 // ── DATA & COLORS ────────────────────────────────────────────────────────────
 const COORDS = {
   Dahisar: { lat: 19.2527, lng: 72.8581 },
@@ -679,6 +680,7 @@ export default function App() {
         allRoutes={allRoutes}         // <--- ADD THIS LINE!
   setSuggestedEdit={setSuggestedEdit} // <--- ADD THIS LINE too!
       />
+      <Analytics />
     </div>
   );
 }
