@@ -454,6 +454,43 @@ export default function App() {
       }
     });
 
+    // ==========================================
+    // 🧠 SMART REVERSE MATCHER
+    // ==========================================
+    if (sanitizedRoute.stops && Array.isArray(sanitizedRoute.stops)) {
+      const newStops = sanitizedRoute.stops;
+      
+      // Look for an existing route that matches these stops exactly, but backwards
+      const existingReverseRoute = allRoutes.find(existingRoute => {
+        if (!existingRoute.stops || existingRoute.stops.length !== newStops.length) return false;
+        
+        const flippedExistingStops = [...existingRoute.stops].reverse();
+        return flippedExistingStops.every((stop, index) => 
+          stop.toLowerCase().trim() === newStops[index].toLowerCase().trim()
+        );
+      });
+
+      // If we found a match AND it has valid map data, hijack it!
+      if (existingReverseRoute && existingReverseRoute.path && existingReverseRoute.path.length > 0) {
+        console.log("Reverse route found! Stealing and flipping the map data...");
+        
+        // Instantly populate the map data by reversing the existing one
+        sanitizedRoute.stopCoords = [...existingReverseRoute.stopCoords].reverse();
+        sanitizedRoute.path = [...existingReverseRoute.path].reverse();
+
+        // Submit to Firebase immediately and exit the function
+        try {
+          await addDoc(collection(db, 'pending_routes'), sanitizedRoute);
+          showToast('✅ Reverse route matched and submitted to Admin!', '#16a34a', '#fff');
+        } catch (fbErr) {
+          alert("Database Error: " + fbErr.message); 
+        }
+        return; // <--- CRITICAL: Stops the function so no API calls are made!
+      }
+    }
+    // ==========================================
+
+
     // NEW: Array to permanently store the exact GPS for every stop!
     sanitizedRoute.stopCoords = new Array(sanitizedRoute.stops?.length || 0).fill(null);
 
@@ -475,8 +512,9 @@ export default function App() {
           if (!stopName) continue;
 
           try {
+            // Updated to be simpler so Nominatim doesn't get confused!
             const searchQuery = encodeURIComponent(`${stopName}, Maharashtra, India`);
-            const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}&limit=1&viewbox=72.75,19.50,73.40,18.90&bounded=0`;
+            const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}&limit=1&viewbox=72.75,19.50,73.40,18.90&bounded=1`;
             
             const geoRes = await fetch(geoUrl);
             const geoData = await geoRes.json();
