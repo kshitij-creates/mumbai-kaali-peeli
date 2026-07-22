@@ -49,6 +49,7 @@ const TypeBadge = ({ type }) => {
 
 function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, onNavigate, onSuggestEdit, language, translations }) {
     const [confirmDel, setConfirmDel] = useState(false);
+    const [showInfo, setShowInfo] = useState(false);
     const m = META[route.type] || META.taxi;
     
     const distLabel =
@@ -302,6 +303,87 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, o
             </div>
           
           <div style={{ fontSize: 12, color: '#aaa', marginTop: '12px' }}>{route.hours}</div>
+          {/* Bottom Bar: Just the Info Button on the right */}
+<div style={{
+  marginTop: '12px',
+  display: 'flex',
+  justifyContent: 'flex-end', // Changed this so the button hugs the right wall!
+  position: 'relative'
+}}>
+  {/* Info (i) Button */}
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      setShowInfo(!showInfo);
+    }}
+    title="Route Verification Info"
+    style={{
+      width: '22px',
+      height: '22px',
+      borderRadius: '50%',
+      backgroundColor: showInfo ? 'rgba(52, 211, 153, 0.2)' : '#27272a',
+      border: `1px solid ${showInfo ? '#34d399' : '#3f3f46'}`,
+      color: showInfo ? '#34d399' : '#a1a1aa',
+      fontSize: '12px',
+      fontWeight: 'bold',
+      fontFamily: 'serif',
+      fontStyle: 'italic',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      outline: 'none'
+    }}
+  >
+    i
+  </button>
+
+  {/* Popup Box */}
+  {showInfo && (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'absolute',
+        bottom: '30px',
+        right: '0',
+        width: '260px',
+        padding: '12px',
+        borderRadius: '12px',
+        backgroundColor: '#18181b',
+        border: '1px solid #3f3f46',
+        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.8), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+        zIndex: 50,
+        textAlign: 'left'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+        <div style={{
+          width: '16px',
+          height: '16px',
+          borderRadius: '50%',
+          backgroundColor: 'rgba(16, 185, 129, 0.15)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          marginTop: '2px'
+        }}>
+          <span style={{ color: '#34d399', fontSize: '10px', fontWeight: 'bold' }}>✓</span>
+        </div>
+        <div>
+          <strong style={{ color: '#f4f4f5', display: 'block', marginBottom: '2px', fontSize: '12px' }}>
+            Verified Route Data
+          </strong>
+          <p style={{ fontSize: '11px', color: '#a1a1aa', lineHeight: '1.4', margin: 0 }}>
+            Boarding spots, landmarks, and route paths are verified for accuracy. Fares and frequency are local estimates subject to real-time traffic and peak hours.
+          </p>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
         </div>
       )}
     </div>
