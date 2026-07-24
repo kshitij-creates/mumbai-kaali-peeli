@@ -50,15 +50,20 @@ const translations = {
     contactUs: "Contact Us",
     language: "Language",
 
-    // Secret Route Box (in drawer)
-    secretTitle: (
-      <>
-        Know a local route that isn't on the map? Spill the secret! 🤫
-        <span style={{ display: 'block', fontSize: '12px', color: '#777', marginTop: '6px', fontStyle: 'italic' }}>
-          (route will be reviewed)
-        </span>
-      </>
-    ),
+   // Secret Route Box (in drawer)
+   secretTitle: (
+    <>
+      <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '6px', color: '#FFD700' }}>
+        Mumbai runs on local knowledge. 📈
+      </div>
+      <div style={{ fontSize: '12px', color: '#D1D5DB', lineHeight: '1.4' }}>
+        SharingFinder relies on real commuters to keep fares, timings, and auto stands accurate. Whether it is a new route or a recent fare hike, don't hesitate to Add a route or Suggest an edit. Every contribution helps the community travel smarter!
+      </div>
+      <span style={{ display: 'block', fontSize: '11px', color: '#777', marginTop: '8px', fontStyle: 'italic' }}>
+        (All contributions will be reviewed)
+      </span>
+    </>
+  ),
     addRoute: "+ Add route",
     suggestEdit: "Suggest Edit",
 
@@ -672,10 +677,10 @@ function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
   return (
     <div style={{ height: 400, width: '100%', borderRadius: 16, overflow: 'hidden', border: `2px solid ${BORDER}` }}>
       <MapContainer center={[19.20, 72.96]} zoom={11} style={{ height: '100%', width: '100%' }}>
-        <TileLayer 
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" 
-          attribution="&copy; OpenStreetMap"
-          crossOrigin="anonymous" 
+      <TileLayer
+          url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+          attribution="&copy; Google Maps"
+          className="dark-map-tiles"
         />
         
         {/* 2. ONLY DRAW LINE IF ROUTE IS SELECTED */}
@@ -1136,30 +1141,48 @@ function CustomerView({
           }}
         ></div>
 
-        {tab === 'list' ? (
-          filtered.map((r, index) => (
-          <div 
-            key={r.id} 
-            style={{
-              opacity: 0,
-              animation: 'slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-              animationDelay: `${index * 60}ms`
-            }}
-          >
-            <RouteCard
-              route={r}
-              selected={selectedId === r.id}
-              onSelect={() => setSelectedId((p) => (p === r.id ? null : r.id))}
-              onDelete={onDeleteRoute}
-              adminMode={adminMode}
-              distance={r.distance}
-              onNavigate={handleNavigateToStop} 
-              onSuggestEdit={() => setShowEditModal(true)} // Fixed Missing Handler!
-              language={language}
-              translations={translations}
-            />
-          </div>
-        ))
+{tab === 'list' ? (
+          filtered.length > 0 ? (
+            filtered.map((r, index) => (
+              <div 
+                key={r.id} 
+                style={{
+                  opacity: 0,
+                  animation: 'slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                  animationDelay: `${index * 60}ms`
+                }}
+              >
+                <RouteCard
+                  route={r}
+                  selected={selectedId === r.id}
+                  onSelect={() => setSelectedId((p) => (p === r.id ? null : r.id))}
+                  onDelete={onDeleteRoute}
+                  adminMode={adminMode}
+                  distance={r.distance}
+                  onNavigate={handleNavigateToStop} 
+                  onSuggestEdit={() => setShowEditModal(true)} // Fixed Missing Handler!
+                  language={language}
+                  translations={translations}
+                />
+              </div>
+            ))
+          ) : (
+            /* OPTION 3: EMPTY SEARCH STATE */
+            <div style={{ backgroundColor: '#1A1A1A', border: '1px dashed #333', borderRadius: '8px', padding: '20px', textAlign: 'center', marginTop: '16px' }}>
+              <h3 style={{ color: '#FFD700', fontSize: '16px', fontWeight: 'bold', marginBottom: '8px', marginTop: '0' }}>
+                Looks like we haven't mapped this route yet! 🕵️‍♂️
+              </h3>
+              <p style={{ color: '#A3A3A3', fontSize: '13px', marginBottom: '16px', lineHeight: '1.5' }}>
+                Know the exact fare and boarding point? Add this route to the map. SharingFinder grows through real commuters like you sharing local knowledge.
+              </p>
+              <button 
+                onClick={() => setShowForm(true)} 
+                style={{ backgroundColor: '#FFD700', color: '#111111', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', border: 'none', width: '100%', cursor: 'pointer' }}
+              >
+                + Add This Route
+              </button>
+            </div>
+          )
         ) : (
           <div style={{ display: 'grid', gap: 12 }}>
             {/* MapView might need importing at the top if it fails! */}
@@ -1276,7 +1299,10 @@ function CustomerView({
     
     {/* Drawer Container */}
     <div 
-      style={{ position: 'fixed', top: 0, left: 0, height: '100%', width: '280px', background: '#0a0a0a', borderRight: '1px solid #222', boxShadow: '4px 0 24px rgba(0,0,0,0.8)', zIndex: 1000, animation: 'slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards', display: 'flex', flexDirection: 'column', padding: '24px 20px', boxSizing: 'border-box' }}
+      style={{ position: 'fixed', top: 0, left: 0, height: '100%', width: '280px', background: '#0a0a0a', borderRight: '1px solid #222', boxShadow: '4px 0 24px rgba(0,0,0,0.8)', zIndex: 1000, animation: 'slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards', display: 'flex', flexDirection: 'column', padding: '24px 20px', boxSizing: 'border-box'
+      ,overflowY: 'auto',       // 👈 Allows vertical scrolling when content overflows
+      paddingBottom: '40px',   // 👈 Gives breathing room so the bottom buttons aren't stuck against the edge
+      padding: '20px'           }}
     >
       
       {/* Header */}

@@ -103,11 +103,12 @@ export default function FaqModal({ isOpen, onClose, onOpenTour }) {
           </div>
 
           <div>
-            <h3 style={{ color: '#fff', fontSize: '16px', marginBottom: '8px' }}>🏷️ What do the tags mean?</h3>
+            <h3 style={{ color: '#fff', fontSize: '16px', marginBottom: '8px' }}>🏷️ What do the icons & tags mean?</h3>
             <ul style={{ color: '#aaa', fontSize: '14px', lineHeight: '1.6', margin: 0, paddingLeft: '20px' }}>
-              <li><strong style={{ color: '#ef4444' }}>Red Tag:</strong> Exact fare (price) for that stop.</li>
-              <li><strong style={{ color: '#3b82f6' }}>Time:</strong> How often a vehicle usually departs.</li>
-              <li><strong style={{ color: '#10b981' }}>Distance:</strong> How far away the route's starting point is from you.</li>
+              <li><strong style={{ color: '#ef4444' }}>Red Price Box (e.g. ₹30):</strong> The standard per-seat fare for this share route.</li>
+              <li><strong style={{ color: '#FFD700' }}>Walking Icon (🚶):</strong> Tap this next to any stop name to get instant Google Maps walking directions to that exact boarding point.</li>
+              <li><strong style={{ color: '#10b981' }}>Vehicle Badge:</strong> The top-right badge shows if you are looking for a share Taxi or Auto.</li>
+              <li><strong style={{ color: '#9ca3af' }}>Time & Landmarks:</strong> Shows how often rides depart and nearby spots to help you find the queue.</li>
             </ul>
           </div>
 

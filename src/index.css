@@ -141,3 +141,7 @@ code {
   color: #FFD700;
   transform: translateX(4px);
 }
+/* Google Maps Dark Mode Hack */
+.dark-map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(85%);
+}
