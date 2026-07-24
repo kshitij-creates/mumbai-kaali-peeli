@@ -603,6 +603,7 @@ export default function App() {
       if (edit.fares !== "No change") updates.fares = edit.fares; // This safely writes your new array!
       if (edit.frequency !== "No change") updates.freq = edit.frequency;
       if (edit.hours !== "No change") updates.hours = edit.hours;
+      if (edit.landmarks !== "No change") updates.landmarks = edit.landmarks; // 👈 BOOM. Fix applied.
       
       // 3. Update the main route document 
       // { merge: true } is CRITICAL here—it ensures we don't accidentally delete the route's coordinates or stops!

@@ -1336,7 +1336,7 @@ function CustomerView({
 
       {/* Existing Secret Route Box (Pushed to bottom) */}
       <div style={{ background: '#161616', border: '1px dashed #FFD700', borderRadius: 12, padding: '20px', textAlign: 'center', marginTop: '24px' }}>
-        <div style={{ fontSize: 24, marginBottom: '8px' }}>🤫</div>
+        <div style={{ fontSize: 24, marginBottom: '8px' }}>📢</div>
         <p style={{ color: '#ccc', fontSize: 13, lineHeight: 1.5, margin: '0 0 16px 0', fontWeight: 500 }}>
         {translations[language].secretTitle}
         </p>
