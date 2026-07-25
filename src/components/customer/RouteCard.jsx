@@ -203,9 +203,9 @@ function RouteCard({ route, selected, onSelect, distance, onDelete, adminMode, o
           >
             {route.landmarks && (
               <div style={{ fontSize: 12, color: Y, marginBottom: 10, fontWeight: 700, display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
-                <span>🏛️</span>
+                <span>📍</span>
                 <span style={{ color: '#ddd', fontWeight: 500, lineHeight: 1.4 }}>
-                  <span style={{ color: Y, fontWeight: 700 }}>Landmarks: </span> 
+                  <span style={{ color: Y, fontWeight: 700 }}>Starting point Landmarks: </span> 
                   {route.landmarks}
                 </span>
               </div>

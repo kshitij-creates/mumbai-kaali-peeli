@@ -318,7 +318,7 @@ const mainCoords = allCoords[0] || { lat: 19.2183, lng: 72.9781 };
           <input required placeholder="Frequency (e.g. Every 5 mins)" value={otherInfo.freq} onChange={(e) => setOtherInfo({ ...otherInfo, freq: e.target.value })} className="cyber-input" />
           <input required placeholder="Hours (e.g. 6 AM - 11 PM)" value={otherInfo.hours} onChange={(e) => setOtherInfo({ ...otherInfo, hours: e.target.value })} className="cyber-input" />
           <input 
-            placeholder="Nearby Landmarks (Optional)" 
+            placeholder=" Starting point Nearby Landmarks (Optional)" 
             value={otherInfo.landmarks} 
             onChange={(e) => setOtherInfo({ ...otherInfo, landmarks: e.target.value })} 
             className="cyber-input" 
