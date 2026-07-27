@@ -1347,6 +1347,11 @@ function CustomerView({
         {translations[language].suggestEdit} ✏️
         </button>
       </div>
+      <div style={{ marginTop: '24px', padding: '0 16px', textAlign: 'center', opacity: 0.7 }}>
+  <p style={{ color: '#aaa', fontSize: '11px', fontFamily: 'monospace', lineHeight: '1.5' }}>
+    💡 <span style={{ color: '#ccc' }}>Pro Tip:</span> Tap your browser menu and hit <span style={{ color: '#fff', fontWeight: '600' }}>"Add to Home Screen"</span> to install the 0MB app.
+  </p>
+</div>
 
     </div>
   </>
