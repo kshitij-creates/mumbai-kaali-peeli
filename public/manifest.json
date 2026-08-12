@@ -1,0 +1,23 @@
+{
+    "name": "SharingFinder",
+    "short_name": "SharingFinder",
+    "description": "Mumbai Metropolitan City Transit Guide",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "icons": [
+      {
+        "src": "/taxi.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "/apple-icon.png",
+        "sizes": "180x180",
+        "type": "image/png",
+        "purpose": "any maskable"
+      }
+    ]
+  }
