@@ -6,7 +6,7 @@ export default function AdminDashboard({
   pendingRoutes = [], 
   onApproveRoute, 
   onRejectRoute, 
-  onApproveEdit, // <-- Newly added prop to route back to App.jsx
+  onApproveEdit, 
   onBack 
 }) {
   const [edits, setEdits] = useState([]);
@@ -27,7 +27,6 @@ export default function AdminDashboard({
     fetchEdits();
   }, []);
 
-  // Rewired to use the App.jsx function for approvals
   const handleEditApproval = async (edit, approve) => {
     try {
       if (approve) {
@@ -35,11 +34,8 @@ export default function AdminDashboard({
           await onApproveEdit(edit);
         }
       } else {
-        // If rejected, just delete the request from the database
         await deleteDoc(doc(db, "pending_edits", edit.id));
       }
-
-      // Immediately remove the edit card from the admin screen
       setEdits(edits.filter(e => e.id !== edit.id));
     } catch (error) {
       console.error("Error processing request:", error);
@@ -101,6 +97,51 @@ export default function AdminDashboard({
                 <div style={{ background: '#000', padding: '8px', borderRadius: '6px' }}><strong>Landmarks:</strong> {edit.landmarks}</div>
               </div>
               
+              {/* --- DYNAMIC UI FOR MULTI-STOP EDITS --- */}
+              {(edit.newStopsArray || edit.newStartName || edit.newEndName || edit.newLat) && (
+                <div style={{ background: '#222', padding: '12px', borderRadius: '8px', marginBottom: '16px', border: '1px dashed #EAB308' }}>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#EAB308', fontSize: '13px' }}>⚠️ Route Updates Suggested:</h4>
+                  
+                  {/* SCENARIO A: The new array format is present */}
+                  {edit.newStopsArray && edit.newStopsArray.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {edit.newStopsArray.map((stop, idx) => {
+                        const hasPin = edit.newPinsArray && edit.newPinsArray[idx] && edit.newPinsArray[idx].lat;
+                        return (
+                          <div key={idx} style={{ fontSize: '13px', color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111', padding: '8px', borderRadius: '6px' }}>
+                            <span>{idx + 1}. {stop}</span>
+                            {hasPin && <span style={{ color: '#39FF14', fontSize: '11px', fontWeight: 'bold', background: 'rgba(57, 255, 20, 0.1)', padding: '4px 8px', borderRadius: '12px' }}>📍 Pinned</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* SCENARIO B: Legacy single-pin logic (Backwards Compatibility) */}
+                  {!edit.newStopsArray && (
+                    <>
+                      {edit.newStartName && (
+                        <div style={{ fontSize: '13px', color: '#fff', marginBottom: '4px' }}>
+                          <span style={{ color: '#888' }}>New Start Name:</span> {edit.newStartName}
+                        </div>
+                      )}
+                      
+                      {edit.newEndName && (
+                        <div style={{ fontSize: '13px', color: '#fff', marginBottom: '4px' }}>
+                          <span style={{ color: '#888' }}>New End Name:</span> {edit.newEndName}
+                        </div>
+                      )}
+                      
+                      {edit.newLat && edit.newLng && (
+                        <div style={{ fontSize: '13px', color: '#39FF14', fontWeight: 'bold', marginTop: '8px' }}>
+                          📍 Exact GPS Pin Provided
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={() => handleEditApproval(edit, true)} style={{ flex: 1, backgroundColor: '#22C55E', color: '#000', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>✅ Approve Edit</button>
                 <button onClick={() => handleEditApproval(edit, false)} style={{ flex: 1, backgroundColor: '#EF4444', color: '#FFF', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>❌ Reject Edit</button>

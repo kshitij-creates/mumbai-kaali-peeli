@@ -5,7 +5,7 @@ import RouteCard from './RouteCard';
 // import MapView from '../map/MapView'; 
 // import AddRouteForm from '../admin/AddRouteForm'; 
 
-import { MapContainer, TileLayer, Polyline, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, CircleMarker, Popup, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 
 import autoIcon from '../../assets/auto.svg';
@@ -35,8 +35,8 @@ const translations = {
     // Top Bar & Filters
     search: "Search stops (e.g. Andheri, Bandra...)",
     all: "All",
-    taxi: "Taxi",
-    auto: "Auto",
+    taxi: "Share Taxi",
+    auto: "Share Auto",
     nearMe: "Near Me",
     
     // Bottom Toggles
@@ -171,11 +171,29 @@ const fetchCoordinates = async (placeName) => {
   }
 };
 
+// 1. THIS SILENTLY TRACKS THE MAP DRAGGING
+function MapDragListener({ onLocationSelect }) {
+  const map = useMapEvents({
+    dragend: () => {
+      const center = map.getCenter();
+      onLocationSelect({ lat: center.lat, lng: center.lng });
+    }
+  });
+  return null;
+}
+
+// 2. YOUR FULL COMPONENT
 function AddRouteForm({ onSubmit, onClose }) {
   const [stopsList, setStopsList] = useState([]);
   const [currentStop, setCurrentStop] = useState('');
-  const [faresList, setFaresList] = useState([]); // NEW: Tracks the list of prices
-  const [currentFare, setCurrentFare] = useState(''); // NEW: Tracks the price currently being typed
+  const [faresList, setFaresList] = useState([]); 
+  const [currentFare, setCurrentFare] = useState(''); 
+  
+  // --- NEW: ARRAYS TO TRACK EVERY PIN ---
+  const [stopPinsList, setStopPinsList] = useState([]); 
+  const [currentPin, setCurrentPin] = useState(null); 
+  // --------------------------------------
+
   const [otherInfo, setOtherInfo] = useState({
     type: 'share_taxi',
     fare: '',
@@ -185,14 +203,51 @@ function AddRouteForm({ onSubmit, onClose }) {
   });
   const [isSearching, setIsSearching] = useState(false);
 
+  // --- NEW: MAP MODAL STATES ---
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
+  const [tempCoords, setTempCoords] = useState({ lat: 19.1963, lng: 72.9656 }); // Default Thane
+  // -----------------------------
+
   const addStop = () => {
     if (currentStop.trim()) {
       setStopsList([...stopsList, currentStop.trim()]);
-      // Push the fare, or default to 'TBD' if they left it blank
       setFaresList([...faresList, currentFare.trim() || 'TBD']); 
       
+      // Save the pin for this specific stop (even if it is null)
+      setStopPinsList([...stopPinsList, currentPin]); 
+      
+      // Reset inputs for the NEXT stop
       setCurrentStop('');
-      setCurrentFare(''); // Reset the fare input for the next stop
+      setCurrentFare(''); 
+      setCurrentPin(null); 
+    }
+  };
+
+  const handleOpenMap = () => {
+    // 1. If they already dropped a pin for a previous stop, open near that
+    const lastPin = stopPinsList.slice().reverse().find(pin => pin !== null);
+    
+    if (lastPin) {
+      setTempCoords(lastPin);
+      setIsMapModalOpen(true);
+    } else {
+      // 2. If it's the very first pin (Start Point), grab their real GPS location!
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            setTempCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setIsMapModalOpen(true);
+          },
+          (err) => {
+            console.warn("GPS failed or denied, using default Thane location.");
+            setTempCoords({ lat: 19.1963, lng: 72.9656 }); // Fallback
+            setIsMapModalOpen(true);
+          },
+          { enableHighAccuracy: true, timeout: 5000 } // Tries to get exact location quickly
+        );
+      } else {
+        setIsMapModalOpen(true);
+      }
     }
   };
 
@@ -201,157 +256,219 @@ function AddRouteForm({ onSubmit, onClose }) {
     if (stopsList.length < 2) return alert('Please add at least 2 stops!');
 
     setIsSearching(true);
+    const allCoords = [];
+    
+    for (let i = 0; i < stopsList.length; i++) {
+      if (stopPinsList[i]) {
+        // User explicitly pinned this stop!
+        allCoords.push(stopPinsList[i]);
+      } else {
+        // Fallback to dictionary
+        try {
+          const coords = await fetchCoordinates(stopsList[i]);
+          allCoords.push(coords ? coords : { lat: 19.2183, lng: 72.9781 });
+        } catch (error) {
+          allCoords.push({ lat: 19.2183, lng: 72.9781 });
+        }
+      }
+    }
 
-    // Grab the first stop (pickup point) to place the map pin
-   // Fetch coordinates for every single stop in the list automatically
-// Fetch coordinates sequentially so the API doesn't block us!
-const allCoords = [];
-for (const stopName of stopsList) {
-  try {
-    const coords = await fetchCoordinates(stopName);
-    allCoords.push(coords ? coords : { lat: 19.2183, lng: 72.9781 });
-  } catch (error) {
-    // If one fails, push the fallback so the app doesn't crash
-    allCoords.push({ lat: 19.2183, lng: 72.9781 });
-  }
-}
-// Safely grab the very first stop's coordinates for the old logic
-const mainCoords = allCoords[0] || { lat: 19.2183, lng: 72.9781 };
+    const mainCoords = allCoords[0] || { lat: 19.2183, lng: 72.9781 };
+    
     const newRoute = {
       type: otherInfo.type,
       name: stopsList.join(' → '),
       stops: stopsList,
       fares: faresList,
-      stopCoordinates: allCoords,
+      stopCoordinates: allCoords, // Put this back so we don't break old code!
+      preFilledCoords: allCoords, // The exact array of pins to send to App.jsx
       frequency: otherInfo.freq,
       hours: otherInfo.hours,
       landmarks: otherInfo.landmarks,
-      // Add the new coordinates, with a fallback just in case the API fails
       lat: mainCoords.lat, 
       lng: mainCoords.lng, 
     };
 
-    // Pass the newly built route up to the parent component to save it
     onSubmit(newRoute);
-    
     setIsSearching(false);
     onClose();
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-    >
-      <div className="cyber-modal" style={{ width: '100%', maxWidth: 400 }}>
-        <h2 style={{ margin: '0 0 16px', color: '#FFD700' }}>Add New Route</h2>
-        <form
-          onSubmit={submit}
-          style={{ display: 'flex', flexDirection: 'column', gap: 10 }}
-        >
-          <select
-            value={otherInfo.type}
-            onChange={(e) => setOtherInfo({ ...otherInfo, type: e.target.value })}
-            className="cyber-input"
-          >
-            <option value="share_taxi">🚕 Share Taxi</option>
-            <option value="auto">🛺 Auto</option>
-          </select>
-
-          <div style={{ display: 'flex', gap: 8 }}>
-          <input
-        placeholder="Add stop (e.g. Bandra)"
-        value={currentStop}
-        onChange={(e) => setCurrentStop(e.target.value)}
-        className="cyber-input"
-      />
-      
-      {/* Only show Fare input IF they already added a starting point */}
-      {stopsList.length > 0 && (
-        <input 
-          required={false}
-          type="number" 
-          placeholder="Fare (₹)" 
-          value={currentFare} 
-          onChange={(e) => setCurrentFare(e.target.value)} 
-          style={{ width: '90px' }}
-          className="cyber-input"
-        />
-      )}
-
-      <button
-        type="button"
-              onClick={addStop}
-              className="tactile-btn"
-              style={{
-                background: '#FFD700',
-                border: 'none',
-                borderRadius: 8,
-                padding: '0 15px',
-                fontWeight: 900,
-              }}
+    <>
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.8)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 9998,
+          display: 'flex',
+          alignItems: 'flex-start', // Fixed scrolling issue
+          justifyContent: 'center',
+          padding: '32px 16px',
+          overflowY: 'auto'
+        }}
+      >
+        <div className="cyber-modal" style={{ width: '100%', maxWidth: 400 }}>
+          <h2 style={{ margin: '0 0 16px', color: '#FFD700' }}>Add New Route</h2>
+          
+          <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <select
+              value={otherInfo.type}
+              onChange={(e) => setOtherInfo({ ...otherInfo, type: e.target.value })}
+              className="cyber-input"
             >
-              +
+              <option value="share_taxi">🚕 Share Taxi</option>
+              <option value="auto">🛺 Share Auto</option>
+            </select>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                placeholder="Add stop (e.g. Bandra)"
+                value={currentStop}
+                onChange={(e) => setCurrentStop(e.target.value)}
+                className="cyber-input"
+              />
+              
+              {stopsList.length > 0 && (
+                <input 
+                  required={false}
+                  type="number" 
+                  placeholder="Fare (₹)" 
+                  value={currentFare} 
+                  onChange={(e) => setCurrentFare(e.target.value)} 
+                  style={{ width: '90px' }}
+                  className="cyber-input"
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={addStop}
+                className="tactile-btn"
+                style={{ background: '#FFD700', border: 'none', borderRadius: 8, padding: '0 15px', fontWeight: 900 }}
+              >
+                add stop +
+              </button>
+            </div>
+
+            {/* --- NEW: DYNAMIC PINPOINT BUTTON (Moved back to original position) --- */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <button
+                type="button"
+                onClick={handleOpenMap}
+                style={{
+                  background: currentPin ? '#1a1a1a' : (stopsList.length === 0 ? '#39FF14' : 'transparent'),
+                  color: currentPin ? '#39FF14' : (stopsList.length === 0 ? '#000' : '#EAB308'),
+                  border: currentPin ? '1px solid #39FF14' : (stopsList.length === 0 ? 'none' : '1px dashed #EAB308'),
+                  padding: '10px',
+                  borderRadius: '8px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {currentPin 
+                  ? '✓ Location Pinned' 
+                  : (stopsList.length === 0 ? '📍 Pinpoint Exact Start (Recommended)' : `📍 Pinpoint Stop ${stopsList.length + 1} (Optional)`)}
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+              {stopsList.map((s, i) => (
+                <span key={i} style={{ background: '#333', padding: '4px 10px', borderRadius: 12, fontSize: '12px', border: stopPinsList[i] ? '1px solid #39FF14' : '1px solid transparent' }}>
+                  {i === 0 ? `📍 Start: ${s}` : `${s} - `}
+                  {i > 0 && <span style={{ color: '#ef4444' }}>₹{faresList[i]}</span>}
+                  {stopPinsList[i] && <span style={{ color: '#39FF14', marginLeft: '4px' }}>✓</span>}
+                </span>
+              ))}
+            </div>
+
+            <input required placeholder="Frequency (e.g. Every 5 mins)" value={otherInfo.freq} onChange={(e) => setOtherInfo({ ...otherInfo, freq: e.target.value })} className="cyber-input" />
+            <input required placeholder="Hours (e.g. 6 AM - 11 PM)" value={otherInfo.hours} onChange={(e) => setOtherInfo({ ...otherInfo, hours: e.target.value })} className="cyber-input" />
+            <input 
+              placeholder=" Starting point Nearby Landmarks (Optional)" 
+              value={otherInfo.landmarks} 
+              onChange={(e) => setOtherInfo({ ...otherInfo, landmarks: e.target.value })} 
+              className="cyber-input" 
+            />
+            
+            <button
+              type="submit"
+              disabled={isSearching}
+              className="tactile-btn"
+              style={{ marginTop: 10, background: isSearching ? '#888' : '#FFD700', padding: 12, borderRadius: 8, fontWeight: 700, border: 'none', cursor: 'pointer' }}
+            >
+              {isSearching ? <><span className="pulse-dot"></span> Mapping...</> : 'Submit Route'}
+            </button>
+            
+            <button type="button" onClick={onClose} className="tactile-btn" style={{ background: '#333', color: '#fff', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer' }}>
+              Cancel
+            </button>
+            
+            <div style={{ fontSize: '10px', color: '#888', textAlign: 'center', marginTop: '12px', letterSpacing: '0.5px' }}>
+              * Please use exact stop names (e.g., "Bandra Station West") so map routing works correctly.
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* --- NEW: THE MAP OVERLAY MODAL --- */}
+      {isMapModalOpen && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          backgroundColor: '#0a0a0a', 
+          zIndex: 9999, 
+          display: 'flex', flexDirection: 'column', padding: '16px'
+        }}>
+          <h3 style={{ color: '#39FF14', textAlign: 'center', margin: '10px 0' }}>Drag map to exact stand</h3>
+          <p style={{ color: '#888', textAlign: 'center', fontSize: '12px', margin: '0 0 15px 0' }}>Pin stays in the center. Move the map under it.</p>
+          
+          <div style={{ position: 'relative', flex: 1, borderRadius: '16px', overflow: 'hidden', border: '2px solid #333' }}>
+            <MapContainer center={[tempCoords.lat, tempCoords.lng]} zoom={16} style={{ height: '100%', width: '100%' }}>
+              <TileLayer
+                url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+                attribution="&copy; Google Maps"
+                className="dark-map-tiles"
+              />
+              <MapDragListener onLocationSelect={(coords) => setTempCoords(coords)} />
+            </MapContainer>
+
+            {/* The frozen center pin */}
+            <div style={{
+              position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -100%)', 
+              zIndex: 1000, pointerEvents: 'none',
+              fontSize: '40px', textShadow: '0px 4px 10px rgba(0,0,0,0.8)'
+            }}>
+              📍
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+            <button 
+              type="button"
+              onClick={() => setIsMapModalOpen(false)} 
+              style={{ flex: 1, padding: '15px', backgroundColor: '#333', color: '#fff', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}
+            >
+              Cancel
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                setCurrentPin(tempCoords);
+                setIsMapModalOpen(false);
+              }}
+              style={{ flex: 2, padding: '15px', backgroundColor: '#39FF14', color: '#000', borderRadius: '8px', border: 'none', fontWeight: 'bold' }}
+            >
+              Confirm Location
             </button>
           </div>
-          
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-  {stopsList.map((s, i) => (
-    <span key={i} style={{ background: '#333', padding: '4px 10px', borderRadius: 12, fontSize: '12px' }}>
-      {/* If it is the first stop (index 0), just show the name. Otherwise, show name + fare! */}
-      {i === 0 ? `📍 Start: ${s}` : `${s} - `}
-      
-      {i > 0 && <span style={{ color: '#ef4444' }}>₹{faresList[i]}</span>}
-    </span>
-  ))}
-</div>
-
-          <input required placeholder="Frequency (e.g. Every 5 mins)" value={otherInfo.freq} onChange={(e) => setOtherInfo({ ...otherInfo, freq: e.target.value })} className="cyber-input" />
-          <input required placeholder="Hours (e.g. 6 AM - 11 PM)" value={otherInfo.hours} onChange={(e) => setOtherInfo({ ...otherInfo, hours: e.target.value })} className="cyber-input" />
-          <input 
-            placeholder=" Starting point Nearby Landmarks (Optional)" 
-            value={otherInfo.landmarks} 
-            onChange={(e) => setOtherInfo({ ...otherInfo, landmarks: e.target.value })} 
-            className="cyber-input" 
-          />
-          <button
-            type="submit"
-            disabled={isSearching}
-            className="tactile-btn"
-            style={{
-              marginTop: 10,
-              background: isSearching ? '#888' : '#FFD700',
-              padding: 12,
-              borderRadius: 8,
-              fontWeight: 700,
-              border: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            {isSearching ? (
-              <>
-                <span className="pulse-dot"></span> Mapping...
-              </>
-            ) : 'Submit Route'}
-          </button>
-          <button type="button" onClick={onClose} className="tactile-btn" style={{ background: '#333', color: '#fff', padding: 12, borderRadius: 8, border: 'none', cursor: 'pointer' }}>
-            Cancel
-          </button>
-          <div style={{ fontSize: '10px', color: '#888', textAlign: 'center', marginTop: '12px', letterSpacing: '0.5px' }}>
-  * Please use exact stop names (e.g., "Bandra Station West") so map routing works correctly.
-</div>
-        </form>
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -592,183 +709,147 @@ function MapView({ routes, selectedId, onSelect, userLoc, walkingRoute }) {
 
   const sel = routes.find((r) => r.id === selectedId);
 
- // 1. GATHER ALL STOPS 24/7 (Smart extraction from saved coords)
- const allMarkers = useMemo(() => {
-  const m = [];
-  
-  routes.forEach((r) => {
-    if (!r.stops || !Array.isArray(r.stops)) return;
+  // --- THE BULLETPROOF DICTIONARY HELPER ---
+  const getCoord = (stopName) => {
+    if (!stopName) return null;
+    const original = stopName.trim();
+    if (COORDS[original]) return COORDS[original];
     
-    r.stops.forEach((stopName, idx) => {
-      if (m.some((x) => x.name === stopName)) return;
+    let key = Object.keys(COORDS).find(k => k.toLowerCase() === original.toLowerCase());
+    if (!key) {
+        const clean = original.toLowerCase().replace(/\([a-z]\)/g, '').trim();
+        key = Object.keys(COORDS).find(k => k.toLowerCase().replace(/\([a-z]\)/g, '').trim() === clean);
+    }
+    // Your brilliant fallback to catch Thane variations
+    if (!key && original.toLowerCase().includes("thane")) {
+        key = Object.keys(COORDS).find(k => k.toLowerCase() === "thane");
+    }
+    return key ? COORDS[key] : null;
+  };
 
-      let pos = null;
+  // 1. GATHER ALL BACKGROUND STOPS (Prioritizes exact Firebase pins, falls back to dictionary)
+  const allMarkers = useMemo(() => {
+    const m = [];
+    routes.forEach((r) => {
+      if (!r.stops || !Array.isArray(r.stops)) return;
+      
+      r.stops.forEach((stopName, idx) => {
+        if (m.some((x) => x.name === stopName)) return;
 
-      // A. Use the true coordinates we saved to Firebase!
-      if (r.stopCoords && r.stopCoords[idx]) {
-        pos = [r.stopCoords[idx].lat, r.stopCoords[idx].lng];
-      }
-      // B. Dictionary fallback for old routes
-      else {
-        const cleanName = stopName.toLowerCase().trim();
-        const dictKey = Object.keys(COORDS || {}).find(k => k.toLowerCase() === cleanName);
-        if (dictKey && COORDS[dictKey]) {
-          pos = [COORDS[dictKey].lat, COORDS[dictKey].lng];
-        } 
-        // C. Curvy path ends fallback
-        else if (r.path && r.path.length > 0) {
-          if (idx === 0) {
-            const pt = r.path[0];
-            pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
-          } else if (idx === r.stops.length - 1) {
-            const pt = r.path[r.path.length - 1];
-            pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
+        let pos = null;
+        if (r.stopCoords && r.stopCoords[idx] && r.stopCoords[idx].lat) {
+          pos = [r.stopCoords[idx].lat, r.stopCoords[idx].lng];
+        } else if (idx === 0 && r.lat && r.lng) {
+          pos = [r.lat, r.lng];
+        } else {
+          const dictMatch = getCoord(stopName);
+          if (dictMatch) {
+            pos = [dictMatch.lat, dictMatch.lng];
+          } else if (r.path && r.path.length > 0) {
+            // Absolute last resort: Grab the ends of the curvy line
+            if (idx === 0) {
+              const pt = r.path[0];
+              pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
+            } else if (idx === r.stops.length - 1) {
+              const pt = r.path[r.path.length - 1];
+              pos = Array.isArray(pt) ? pt : [pt.lat, pt.lng];
+            }
           }
         }
-      }
 
-      if (pos && pos[0] && pos[1]) {
-        m.push({ name: stopName, pos });
-      }
+        if (pos && pos[0] && pos[1]) m.push({ name: stopName, pos });
+      });
     });
-  });
-  
-  return m;
-}, [routes]);
-  // Coordinates for the selected route line
+    return m;
+  }, [routes]);
+
+  // 2. DRAW THE ROUTE LINE (Trusts the Admin Dashboard's new curve generation)
   const selCoords = useMemo(() => {
     if (!sel) return null;
-    if (sel.path && sel.path.length > 1) return sel.path;
 
-    const getCoord = (stopName) => {
-        if (!stopName) return null;
-        const original = stopName.trim();
-        if (COORDS[original]) return COORDS[original];
-        
-        let key = Object.keys(COORDS).find(k => k.toLowerCase() === original.toLowerCase());
-        
-        if (!key) {
-            const clean = original.toLowerCase().replace(/\([a-z]\)/g, '').trim();
-            key = Object.keys(COORDS).find(k => k.toLowerCase().replace(/\([a-z]\)/g, '').trim() === clean);
-        }
-        
-        if (!key && original.toLowerCase().includes("thane")) {
-            key = Object.keys(COORDS).find(k => k.toLowerCase() === "thane");
-        }
-        return key ? COORDS[key] : null;
-    };
+    // A. If the backend gave us a new curvy line, use it exactly as is! NO STITCHING!
+    if (sel.path && sel.path.length > 1) {
+        return sel.path.map(p => Array.isArray(p) ? p : [p.lat, p.lng]);
+    }
 
-    // 🌟 LOOP FIX: Map through ALL stops so it connects every dot to the end!
-    const mappedPoints = (sel.stops || []).map((stopName, index) => {
-        // Stop 1: Lock onto your exact GPS coordinate
+    // B. Straight line fallback if OSRM api fails
+    const trueStops = (sel.stops || []).map((stopName, index) => {
+        if (sel.stopCoords && sel.stopCoords[index]) return [sel.stopCoords[index].lat, sel.stopCoords[index].lng];
         if (index === 0 && sel.lat && sel.lng) return [sel.lat, sel.lng];
         
-        // All other stops (including the final destination): Find in dictionary
-        const c = getCoord(stopName);
-        return c ? [c.lat, c.lng] : null;
-    }).filter(Boolean); // Clean out any stops it couldn't find
+        const match = getCoord(stopName);
+        return match ? [match.lat, match.lng] : null;
+    });
 
-    // Draw the full multi-stop line!
+    const mappedPoints = trueStops.filter(Boolean);
     if (mappedPoints.length > 1) return mappedPoints;
-    
     if (sel.lat && sel.lng) return [[sel.lat, sel.lng]];
     return null;
-}, [sel]);
+  }, [sel]);
+
   return (
     <div style={{ height: 400, width: '100%', borderRadius: 16, overflow: 'hidden', border: `2px solid ${BORDER}` }}>
       <MapContainer center={[19.20, 72.96]} zoom={11} style={{ height: '100%', width: '100%' }}>
-      <TileLayer
+        <TileLayer
           url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
           attribution="&copy; Google Maps"
           className="dark-map-tiles"
         />
         
-        {/* 2. ONLY DRAW LINE IF ROUTE IS SELECTED */}
+        {/* Draw the Route Line */}
         {selCoords && selCoords.length >= 2 && (
           <>
-            {/* Black Border Line */}
-            <Polyline 
-              positions={selCoords} 
-              pathOptions={{ color: '#000', weight: 7, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }} 
-            />
-            {/* Colored Foreground Line */}
-            <Polyline 
-              positions={selCoords} 
-              pathOptions={{ color: META[sel.type]?.color || '#22C55E', weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round' }} 
-            />
+            <Polyline positions={selCoords} pathOptions={{ color: '#000', weight: 7, opacity: 0.8, lineCap: 'round', lineJoin: 'round' }} />
+            <Polyline positions={selCoords} pathOptions={{ color: META[sel.type]?.color || '#22C55E', weight: 4, opacity: 1, lineCap: 'round', lineJoin: 'round' }} />
           </>
         )}
 
-        {/* 3. WALKING ROUTE */}
+        {/* Walking Directions */}
         {walkingRoute && (
           <Polyline positions={walkingRoute} pathOptions={{ color: '#3b82f6', weight: 4, dashArray: '5, 10', opacity: 0.9 }} />
         )}
 
-        {/* 4. DRAW ALL MARKERS 24/7 */}
-    {allMarkers.map((m, i) => {
-      const isSelected = (sel?.stops || []).includes(m.name);
-      
-      // HIDE the inaccurate dictionary marker if this route is active!
-      if (isSelected) return null;
-
-      return (
-        <CircleMarker
-          key={`all-${i}`}
-          center={m.pos}
-          radius={4.5}
-          pathOptions={{
-            color: '#000',
-            weight: 2,
-            fillColor: '#fff',
-            fillOpacity: 1,
-          }}
-        >
-          <Popup>{m.name}</Popup>
-        </CircleMarker>
-      );
-    })}
-
-    {/* 4.5 DRAW ALL PINS FOR THE SELECTED ROUTE */}
-    {selCoords && selCoords.length > 1 && sel?.stops && (
-      <>
-        {sel.stops.map((stopName, index) => {
-          let pos = null;
-
-          // 1. Pull the exact true coordinates directly from the database!
-          if (sel.stopCoords && sel.stopCoords[index]) {
-            pos = [sel.stopCoords[index].lat, sel.stopCoords[index].lng];
-          } 
-          // 2. Fallback to dictionary for older routes
-          else {
-            const clean = stopName.toLowerCase().trim();
-            const matchKey = Object.keys(COORDS || {}).find(k => k.toLowerCase() === clean);
-            if (matchKey && COORDS[matchKey]) {
-              pos = [COORDS[matchKey].lat, COORDS[matchKey].lng];
-            }
-          }
-
-          // 3. Absolute last resort for older routes with no middle stop data
-          if (!pos) {
-              if (index === 0) pos = selCoords[0];
-              else if (index === sel.stops.length - 1) pos = selCoords[selCoords.length - 1];
-          }
-
-          if (!pos) return null;
+        {/* Draw Background Markers */}
+        {allMarkers.map((m, i) => {
+          // Hide background marker if this route is currently selected
+          if ((sel?.stops || []).includes(m.name)) return null;
 
           return (
-            <CircleMarker
-              key={`sel-stop-${index}`}
-              center={pos}
-              radius={6}
-              pathOptions={{ color: '#000', weight: 3, fillColor: '#fff', fillOpacity: 1 }}
-            >
-              <Popup>{stopName}</Popup>
+            <CircleMarker key={`all-${i}`} center={m.pos} radius={4.5} pathOptions={{ color: '#000', weight: 2, fillColor: '#fff', fillOpacity: 1 }}>
+              <Popup>{m.name}</Popup>
             </CircleMarker>
           );
         })}
-      </>
-    )}
-        {/* 5. USER LOCATION */}
+
+        {/* 4.5 DRAW THE CORRECT PINS FOR THE SELECTED ROUTE */}
+        {selCoords && selCoords.length > 1 && sel?.stops && (
+          <>
+            {sel.stops.map((stopName, index) => {
+              let pos = null;
+              
+              if (sel.stopCoords && sel.stopCoords[index]) pos = [sel.stopCoords[index].lat, sel.stopCoords[index].lng];
+              else if (index === 0 && sel.lat && sel.lng) pos = [sel.lat, sel.lng];
+              else {
+                const match = getCoord(stopName);
+                if (match) pos = [match.lat, match.lng];
+              }
+
+              if (!pos) {
+                  if (index === 0) pos = selCoords[0];
+                  else if (index === sel.stops.length - 1) pos = selCoords[selCoords.length - 1];
+              }
+              if (!pos) return null;
+
+              return (
+                <CircleMarker key={`sel-stop-${index}`} center={pos} radius={6} pathOptions={{ color: '#000', weight: 3, fillColor: '#fff', fillOpacity: 1 }}>
+                  <Popup>{stopName}</Popup>
+                </CircleMarker>
+              );
+            })}
+          </>
+        )}
+
+        {/* User Location */}
         {userLoc && (
           <CircleMarker center={[userLoc.lat, userLoc.lng]} radius={7} pathOptions={{ color: '#fff', weight: 3, fillColor: '#3b82f6', fillOpacity: 1 }}>
             <Popup>You are here</Popup>
@@ -855,6 +936,30 @@ function CustomerView({
     }
   };
 
+  // --- NEW: INTERCEPTS ROUTECARD TO FORCE TRUE FIREBASE COORDS FOR WALKING ---
+  const handleSmartNavigate = (route, stopName, fallbackLat, fallbackLng) => {
+    let trueLat = fallbackLat;
+    let trueLng = fallbackLng;
+
+    // Figure out exactly which stop the user clicked on (start, middle, or end)
+    const stopIndex = (route.stops || []).findIndex(
+      s => s.toLowerCase().trim() === stopName.toLowerCase().trim()
+    );
+
+    // 1. Prioritize the exact Firebase pinpoint for THIS specific stop
+    if (stopIndex !== -1 && route.stopCoords && route.stopCoords[stopIndex] && route.stopCoords[stopIndex].lat) {
+        trueLat = route.stopCoords[stopIndex].lat;
+        trueLng = route.stopCoords[stopIndex].lng;
+    } 
+    // 2. Fallback to route root lat/lng ONLY if they clicked the very first stop
+    else if (stopIndex === 0 && route.lat && route.lng) {
+        trueLat = route.lat;
+        trueLng = route.lng;
+    }
+    
+    // Pass the corrected, highly-accurate coordinates to your routing function
+    handleNavigateToStop(stopName, trueLat, trueLng);
+  };
   const filtered = useMemo(() => {
     // SECURITY GUARD: Prevents "Cannot read properties of undefined" crash
     if (!allRoutes || !Array.isArray(allRoutes)) return [];
@@ -884,13 +989,18 @@ function CustomerView({
         let startLat = null;
         let startLng = null;
 
-        // 1. The Magic: Grab the exact first coordinate from the curvy green line
-        if (r.path && r.path.length > 0) {
+        // 1. HIGHEST PRIORITY: Exact Firebase Coordinates (Edited/New routes)
+        if (r.stopCoords && r.stopCoords[0] && r.stopCoords[0].lat) {
+          startLat = r.stopCoords[0].lat;
+          startLng = r.stopCoords[0].lng;
+        }
+        // 2. Grab the exact first coordinate from the curvy green line
+        else if (r.path && r.path.length > 0) {
           const pt = r.path[0];
           startLat = Array.isArray(pt) ? pt[0] : pt.lat;
           startLng = Array.isArray(pt) ? pt[1] : pt.lng;
         } 
-        // 2. Fallback: If it's an old route without a line, look up the first stop name
+        // 3. Fallback: If it's an old route without a line, look up the first stop name
         else if (r.stops && r.stops.length > 0) {
           const firstStop = r.stops[0].toLowerCase().trim();
           const matchKey = Object.keys(COORDS || {}).find(k => k.toLowerCase() === firstStop);
@@ -900,7 +1010,7 @@ function CustomerView({
           }
         }
         
-        // 3. Absolute Last Resort: The old GPS ping
+        // 4. Absolute Last Resort: The old GPS ping
         if (!startLat && !startLng && r.lat && r.lng) {
           startLat = r.lat;
           startLng = r.lng;
@@ -1159,7 +1269,7 @@ function CustomerView({
                   onDelete={onDeleteRoute}
                   adminMode={adminMode}
                   distance={r.distance}
-                  onNavigate={handleNavigateToStop} 
+                  onNavigate={(stopName, lat, lng) => handleSmartNavigate(r, stopName, lat, lng)}
                   onSuggestEdit={() => setShowEditModal(true)} // Fixed Missing Handler!
                   language={language}
                   translations={translations}
@@ -1205,7 +1315,7 @@ function CustomerView({
                   onDelete={onDeleteRoute}
                   adminMode={adminMode}
                   distance={r.distance}
-                  onNavigate={handleNavigateToStop}
+                  onNavigate={(stopName, lat, lng) => handleSmartNavigate(r, stopName, lat, lng)}
                   onSuggestEdit={() => setShowEditModal(true)} // Fixed Missing Handler!
                   language={language}
               translations={translations}

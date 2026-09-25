@@ -334,53 +334,82 @@ export default function App() {
     });
   };
 
-  // 2. THIS IS THE ACTUAL SUBMIT BUTTON LOGIC
-  const handleSubmitEdit = async () => {
-    if (!suggestedEdit.routeId) {
-      alert("Please select a route first!");
-      return;
+ // 2. THIS IS THE ACTUAL SUBMIT BUTTON LOGIC
+ const handleSubmitEdit = async () => {
+  if (!suggestedEdit.routeId) {
+    alert("Please select a route first!");
+    return;
+  }
+
+  try {
+    let parsedFares = null;
+    if (suggestedEdit.fares && typeof suggestedEdit.fares === 'string' && suggestedEdit.fares !== "No change") {
+      const userEnteredFares = suggestedEdit.fares.split(',').map(f => Number(f.trim()));
+      parsedFares = [0, ...userEnteredFares];
     }
 
-    try {
-      // NEW: Convert the comma-separated string into an array of numbers
-      // NEW: Convert the string into an array, and auto-add the 0 at the start!
-      let parsedFares = null;
-      if (suggestedEdit.fares && typeof suggestedEdit.fares === 'string') {
-        // 1. Turn what the user typed (e.g. "20, 30") into an array
-        const userEnteredFares = suggestedEdit.fares.split(',').map(f => Number(f.trim()));
-        
-        // 2. Slap a 0 at the very front for the starting point!
-        parsedFares = [0, ...userEnteredFares];
+    // Build the clean object to send to Firebase
+    const editData = {
+      routeId: suggestedEdit.routeId,
+      routeName: suggestedEdit.routeName,
+      fares: parsedFares || suggestedEdit.fares || "No change", 
+      frequency: suggestedEdit.frequency || "No change",
+      hours: suggestedEdit.hours || "No change",
+      landmarks: suggestedEdit.landmarks || "No change",
+      
+      // --- NEW & LEGACY: Map Data and Stop Names ---
+      newStartName: suggestedEdit.newStartName || null,
+      newEndName: suggestedEdit.newEndName || null,
+      newLat: suggestedEdit.newLat || null, 
+      newLng: suggestedEdit.newLng || null,
+      newStopsArray: suggestedEdit.newStopsArray || null,
+      newPinsArray: suggestedEdit.newPinsArray || null,
+      // ------------------------------------
+      
+      status: "pending",
+      createdAt: new Date().toISOString()
+    };
+
+    // Firebase crash protection: strip out any rogue 'undefined' values completely
+    Object.keys(editData).forEach(key => {
+      if (editData[key] === undefined) {
+        delete editData[key];
       }
+    });
 
-      // Build the clean object to send to Firebase
-      const editData = {
-        routeId: suggestedEdit.routeId,
-        routeName: suggestedEdit.routeName,
-        fares: parsedFares || "No change", // Sending the array here!
-        frequency: suggestedEdit.frequency || "No change",
-        hours: suggestedEdit.hours || "No change",
-        landmarks: suggestedEdit.landmarks || "No change",
-        status: "pending",
-        createdAt: new Date().toISOString()
-      };
+    await addDoc(collection(db, 'pending_edits'), editData);
+    
+    setToast({ msg: '✅ Edit submitted for review!', color: '#22C55E', textColor: '#FFF' });
+    setShowEditModal(false); 
+    
+    // Clear the ENTIRE state so old arrays don't stick around for the next edit
+    setSuggestedEdit({ 
+      routeName: "", 
+      searchQuery: "", 
+      fares: "", 
+      frequency: "", 
+      hours: "", 
+      landmarks: "",
+      newStartName: null,
+      newEndName: null,
+      newLat: null,
+      newLng: null,
+      newStopsArray: null,
+      newPinsArray: null
+    });
 
-      await addDoc(collection(db, 'pending_edits'), editData);
-      
-      setToast({ msg: '✅ Edit submitted for review!', color: '#22C55E', textColor: '#FFF' });
-      setShowEditModal(false); 
-      setTimeout(() => {
-        setToast(null); 
-      }, 3000);
-      
-    } catch (error) {
-      console.error("Firebase Edit Error:", error);
-      setToast({ msg: '❌ Failed to submit edit. Check connection.', color: '#dc2626', textColor: '#FFF' });
-      setTimeout(() => {
-        setToast(null); 
-      }, 3000);
-    }
-  };
+    setTimeout(() => {
+      setToast(null); 
+    }, 3000);
+    
+  } catch (error) {
+    console.error("Firebase Edit Error:", error);
+    setToast({ msg: '❌ Failed to submit edit. Check connection.', color: '#dc2626', textColor: '#FFF' });
+    setTimeout(() => {
+      setToast(null); 
+    }, 3000);
+  }
+};
 
   const [view, setView] = useState('customer');
   const [adminMode, setAdminMode] = useState(false);
@@ -492,72 +521,81 @@ export default function App() {
     // ==========================================
 
 
-    // NEW: Array to permanently store the exact GPS for every stop!
-    sanitizedRoute.stopCoords = new Array(sanitizedRoute.stops?.length || 0).fill(null);
+   // 1. Give priority to our new pre-filled pins from the AddRouteForm!
+   sanitizedRoute.stopCoords = sanitizedRoute.preFilledCoords || new Array(sanitizedRoute.stops?.length || 0).fill(null);
+    
+   // Clean up temporary arrays so they don't save to Firebase
+   delete sanitizedRoute.preFilledCoords;
+   delete sanitizedRoute.stopCoordinates; 
 
-    try {
-      const routeCoords = [];
+   try {
+     const routeCoords = [];
 
-      // A. Grab the starting GPS pin
-      if (sanitizedRoute.lat && sanitizedRoute.lng) {
-        routeCoords.push(`${sanitizedRoute.lng},${sanitizedRoute.lat}`);
-        sanitizedRoute.stopCoords[0] = { lat: sanitizedRoute.lat, lng: sanitizedRoute.lng };
-      }
+     // A. Grab the starting GPS pin
+     if (sanitizedRoute.lat && sanitizedRoute.lng) {
+       routeCoords.push(`${sanitizedRoute.lng},${sanitizedRoute.lat}`);
+       if (!sanitizedRoute.stopCoords[0]) {
+           sanitizedRoute.stopCoords[0] = { lat: sanitizedRoute.lat, lng: sanitizedRoute.lng };
+       }
+     }
 
-      // B. LIVE GEOCODING
-      if (sanitizedRoute.stops && Array.isArray(sanitizedRoute.stops)) {
-        for (let i = 0; i < sanitizedRoute.stops.length; i++) {
-          if (i === 0 && sanitizedRoute.lat) continue;
+     // B. LIVE GEOCODING (Skips stops you already pinned!)
+     if (sanitizedRoute.stops && Array.isArray(sanitizedRoute.stops)) {
+       for (let i = 0; i < sanitizedRoute.stops.length; i++) {
+         if (i === 0 && sanitizedRoute.lat) continue;
 
-          const stopName = sanitizedRoute.stops[i];
-          if (!stopName) continue;
+         const stopName = sanitizedRoute.stops[i];
+         if (!stopName) continue;
 
-          try {
-            // Updated to be simpler so Nominatim doesn't get confused!
-            const searchQuery = encodeURIComponent(`${stopName}, Maharashtra, India`);
-            const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}&limit=1&viewbox=72.75,19.50,73.40,18.90&bounded=1`;
-            
-            const geoRes = await fetch(geoUrl);
-            const geoData = await geoRes.json();
+         // If this stop already has an exact pin from the AddRouteForm, skip Geocoding!
+         if (sanitizedRoute.stopCoords[i] && sanitizedRoute.stopCoords[i].lat) {
+           routeCoords.push(`${sanitizedRoute.stopCoords[i].lng},${sanitizedRoute.stopCoords[i].lat}`);
+           continue; 
+         }
 
-            if (geoData && geoData.length > 0) {
-              const lon = Number(geoData[0].lon);
-              const lat = Number(geoData[0].lat);
-              
-              routeCoords.push(`${lon},${lat}`);
-              
-              // SAVE THE EXACT GPS FOR THIS SPECIFIC STOP!
-              sanitizedRoute.stopCoords[i] = { lat, lng: lon };
-            }
+         try {
+           const searchQuery = encodeURIComponent(`${stopName}, Maharashtra, India`);
+           const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${searchQuery}&limit=1&viewbox=72.75,19.50,73.40,18.90&bounded=1`;
+           
+           const geoRes = await fetch(geoUrl);
+           const geoData = await geoRes.json();
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          } catch (geoErr) {
-            console.error("Geocoding failed for", stopName, geoErr);
-          }
-        }
-      }
+           if (geoData && geoData.length > 0) {
+             const lon = Number(geoData[0].lon);
+             const lat = Number(geoData[0].lat);
+             
+             routeCoords.push(`${lon},${lat}`);
+             sanitizedRoute.stopCoords[i] = { lat, lng: lon };
+           }
 
-      // C. FETCH CURVY ROADS
-      if (routeCoords.length > 1) {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${routeCoords.join(';')}?overview=full&geometries=geojson`;
-        const res = await fetch(osrmUrl);
-        const data = await res.json();
+           await new Promise(resolve => setTimeout(resolve, 1000));
+         } catch (geoErr) {
+           console.error("Geocoding failed for", stopName, geoErr);
+         }
+       }
+     }
 
-        if (data.routes && data.routes[0] && data.routes[0].geometry) {
-          sanitizedRoute.path = data.routes[0].geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
-        }
-      }
-    } catch (err) {
-      console.warn("Curve generation skipped due to error, but saving route anyway:", err);
-    }
+     // C. FETCH CURVY ROADS
+     if (routeCoords.length > 1) {
+       const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${routeCoords.join(';')}?overview=full&geometries=geojson`;
+       const res = await fetch(osrmUrl);
+       const data = await res.json();
 
-    try {
-      await addDoc(collection(db, 'pending_routes'), sanitizedRoute);
-      showToast('✅ Route submitted to Admin for review!', '#16a34a', '#fff');
-    } catch (fbErr) {
-      alert("Database Error: " + fbErr.message); 
-    }
-  };
+       if (data.routes && data.routes[0] && data.routes[0].geometry) {
+         sanitizedRoute.path = data.routes[0].geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
+       }
+     }
+   } catch (err) {
+     console.warn("Curve generation skipped due to error, but saving route anyway:", err);
+   }
+
+   try {
+     await addDoc(collection(db, 'pending_routes'), sanitizedRoute);
+     showToast('✅ Route submitted to Admin for review!', '#16a34a', '#fff');
+   } catch (fbErr) {
+     alert("Database Error: " + fbErr.message); 
+   }
+ };
 
   const handleDelete = async (id) => {
     if (BASE_ROUTES.some((r) => r.id === id)) {
@@ -591,28 +629,103 @@ export default function App() {
       alert("Firestore Error: " + error.message);
     }
   };
+
   const handleApproveEdit = async (edit) => {
     try {
-      // 1. Point to the specific route in the database using the routeId
-      // We convert it to a string just in case it's a number from BASE_ROUTES
       const routeRef = doc(db, 'approved_routes', edit.routeId.toString());
-
-      // 2. Build our update object. 
-      // We only want to overwrite the data if the user actually typed a new value.
       const updates = {};
-      if (edit.fares !== "No change") updates.fares = edit.fares; // This safely writes your new array!
-      if (edit.frequency !== "No change") updates.freq = edit.frequency;
-      if (edit.hours !== "No change") updates.hours = edit.hours;
-      if (edit.landmarks !== "No change") updates.landmarks = edit.landmarks; // 👈 BOOM. Fix applied.
-      
-      // 3. Update the main route document 
-      // { merge: true } is CRITICAL here—it ensures we don't accidentally delete the route's coordinates or stops!
-      await setDoc(routeRef, updates, { merge: true });
 
-      // 4. Delete the pending edit request now that it has been applied
+      if (edit.fares && edit.fares !== "No change") updates.fares = edit.fares; 
+      if (edit.frequency && edit.frequency !== "No change") updates.freq = edit.frequency;
+      if (edit.hours && edit.hours !== "No change") updates.hours = edit.hours;
+      if (edit.landmarks && edit.landmarks !== "No change") updates.landmarks = edit.landmarks; 
+
+      // 1. GRAB EXISTING ROUTE (Crucial for backwards compatibility and partial edits)
+      const existingRoute = allRoutes.find(r => r.id === edit.routeId);
+      
+      // 2. SMART MERGE: Use the new arrays if they exist, otherwise fall back to existing data
+      let finalStops = edit.newStopsArray || (existingRoute && existingRoute.stops ? [...existingRoute.stops] : []);
+      let finalPins = edit.newPinsArray || (existingRoute && existingRoute.stopCoords ? [...existingRoute.stopCoords] : new Array(finalStops.length).fill(null));
+
+      let needsPathRegeneration = false;
+
+      // --- SCENARIO A: Edit comes from the NEW multi-stop modal ---
+      if (edit.newStopsArray && edit.newPinsArray) {
+        updates.stops = finalStops;
+        updates.name = finalStops.join(' → '); 
+        updates.stopCoords = finalPins;
+        
+        // Keep root lat/lng in sync with the first pin
+        if (finalPins[0] && finalPins[0].lat) {
+          updates.lat = finalPins[0].lat;
+          updates.lng = finalPins[0].lng;
+        }
+        needsPathRegeneration = true;
+      } 
+      // --- SCENARIO B: Edit comes from the OLD modal (Pending in your database) ---
+      else if (edit.newStartName || edit.newEndName || edit.newLat) {
+        if (finalStops.length > 0) {
+          if (edit.newStartName) finalStops[0] = edit.newStartName;
+          if (edit.newEndName) finalStops[finalStops.length - 1] = edit.newEndName;
+          
+          updates.stops = finalStops;
+          updates.name = finalStops.join(' → '); 
+        }
+
+        if (edit.newLat && edit.newLng) {
+          updates.lat = edit.newLat;
+          updates.lng = edit.newLng;
+          finalPins[0] = { lat: edit.newLat, lng: edit.newLng };
+          updates.stopCoords = finalPins; 
+        }
+        needsPathRegeneration = true;
+      }
+
+      // 3. 🔥 GENERATE BRAND NEW CURVY LINE USING OSRM API 🔥
+      if (needsPathRegeneration) {
+        try {
+          const routeCoords = [];
+          
+          for (let i = 0; i < finalStops.length; i++) {
+            let pt = finalPins[i];
+
+            // Fallback to dictionary if Firebase doesn't have the middle stop coordinates
+            if (!pt || !pt.lat) {
+              const stopName = finalStops[i];
+              if (stopName) {
+                const clean = stopName.toLowerCase().replace(/\([a-z]\)/g, '').trim();
+                const dictKey = Object.keys(COORDS).find(k => k.toLowerCase().replace(/\([a-z]\)/g, '').trim() === clean);
+                if (dictKey && COORDS[dictKey]) {
+                  pt = COORDS[dictKey];
+                }
+              }
+            }
+
+            if (pt && pt.lat && pt.lng) {
+              routeCoords.push(`${pt.lng},${pt.lat}`); 
+            }
+          }
+
+          if (routeCoords.length > 1) {
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${routeCoords.join(';')}?overview=full&geometries=geojson`;
+            const res = await fetch(osrmUrl);
+            const data = await res.json();
+
+            if (data.routes && data.routes[0] && data.routes[0].geometry) {
+              updates.path = data.routes[0].geometry.coordinates.map(c => ({ lat: c[1], lng: c[0] }));
+            }
+          }
+        } catch (apiErr) {
+          console.error("OSRM failed during edit, falling back to straight line:", apiErr);
+          updates.path = null; 
+        }
+      }
+      
+      // 4. Save to database and cleanup
+      await setDoc(routeRef, updates, { merge: true });
       await deleteDoc(doc(db, 'pending_edits', edit.id));
 
-      showToast('✅ Route edit applied successfully!', '#16a34a', '#fff');
+      showToast('✅ Route edit & map curves applied successfully!', '#16a34a', '#fff');
     } catch (error) {
       console.error("Error approving edit:", error);
       alert("Error applying edit: " + error.message);
