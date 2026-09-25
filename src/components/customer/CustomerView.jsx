@@ -249,7 +249,7 @@ function AddRouteForm({ onSubmit, onClose }) {
         setIsMapModalOpen(true);
       }
     }
-  };
+  }; 
 
   const submit = async (e) => {
     e.preventDefault();
